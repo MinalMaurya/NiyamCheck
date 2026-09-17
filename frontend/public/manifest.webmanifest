@@ -1,0 +1,32 @@
+{
+  "name": "NiyamCheck — AI Product Compliance Checker",
+  "short_name": "NiyamCheck",
+  "description": "Automated Legal Metrology Compliance Inspection Platform for Packaged Commodities (SIH26034)",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0B1120",
+  "theme_color": "#1E3A8A",
+  "orientation": "portrait-primary",
+  "categories": ["business", "government", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

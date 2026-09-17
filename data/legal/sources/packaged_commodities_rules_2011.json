@@ -1,0 +1,106 @@
+{
+  "source_id": "PCR-2011",
+  "title": "Legal Metrology (Packaged Commodities) Rules, 2011",
+  "authority": "Department of Consumer Affairs, Ministry of Consumer Affairs, Food and Public Distribution, Government of India",
+  "document_type": "RULES",
+  "publication_date": "2011-06-24",
+  "effective_date": "2012-04-01",
+  "version": "G.S.R. 427(E)",
+  "source_url": "https://consumeraffairs.nic.in/acts-and-rules/legal-metrology/the-legal-metrology-packaged-commodities-rules-2011",
+  "jurisdiction": "India",
+  "status": "ACTIVE",
+  "content": "In exercise of the powers conferred by sub-section (1) read with clauses (j) and (q) of sub-section (2) of section 52 of the Legal Metrology Act, 2009 (1 of 2010), the Central Government hereby makes the Legal Metrology (Packaged Commodities) Rules, 2011.\n\nRule 6. Declarations to be made on every package: (1) Every package shall bear thereon or on label securely affixed thereto, a definite, plain and conspicuous declaration made in accordance with the provisions of this Chapter as, to—\n(a) the name and address of the manufacturer, or where the manufacturer is not the packer, the name and address of the manufacturer and packer and for any imported package the name and address of the importer;\n(b) the common or generic names of the commodity contained in the package and in case of packages with more than one product, the name and number or quantity of each product shall be specified on the package;\n(c) the net quantity, in terms of the standard unit of weight or measure, of the commodity contained in the package or where the commodity is sold by number, the number of the commodity contained in the package shall be mentioned;\n(d) the month and year in which the commodity is manufactured or pre-packed or imported shall be mentioned in the package;\n(da) the retail sale price of the package in the form of Maximum Retail Price (MRP) inclusive of all taxes in Indian currency;\n(e) the name, address, telephone number, e-mail address, if available, of the person who can be or the office which can be contacted, in case of consumer complaints;\n(f) the name of the country of origin or manufacture or assembly in case of imported products shall be mentioned on the package.\n\nRule 9. Manner in which declaration shall be made: (1) Every declaration which is required to be made on a package under these rules shall be legible and prominent.\n(2) The declaration of net quantity shall be in terms of standard metric units.\n\nRule 18. Provisions relating to wholesale dealer and retail dealer: (1) No wholesale dealer or retail dealer shall sell, distribute, deliver, display or offer for sale any commodity in packed form at a price exceeding the retail sale price thereof.",
+  "rules": [
+    {
+      "rule_number": "Rule 6",
+      "heading": "Declarations to be made on every package",
+      "text": "Every package shall bear thereon or on label securely affixed thereto, a definite, plain and conspicuous declaration made in accordance with the provisions of this Chapter.",
+      "subrules": [
+        {
+          "subrule_number": "6(1)(a)",
+          "clause": "(a)",
+          "heading": "Name and address of manufacturer, packer, or importer",
+          "text": "The name and address of the manufacturer, or where the manufacturer is not the packer, the name and address of the manufacturer and packer and for any imported package the name and address of the importer shall be declared on the package.",
+          "keywords": ["name", "address", "manufacturer", "packer", "importer", "postal address", "pin code", "premises"]
+        },
+        {
+          "subrule_number": "6(1)(b)",
+          "clause": "(b)",
+          "heading": "Generic name or identity of the commodity",
+          "text": "The common or generic names of the commodity contained in the package and in case of packages with more than one product, the name and number or quantity of each product shall be specified on the package.",
+          "keywords": ["generic name", "common name", "commodity name", "product identity", "product name", "description"]
+        },
+        {
+          "subrule_number": "6(1)(c)",
+          "clause": "(c)",
+          "heading": "Net quantity declaration",
+          "text": "The net quantity, in terms of the standard unit of weight or measure, of the commodity contained in the package or where the commodity is sold by number, the number of the commodity contained in the package shall be mentioned.",
+          "keywords": ["net quantity", "net weight", "net volume", "standard unit", "grams", "kilograms", "millilitres", "litres", "count", "magnitude"]
+        },
+        {
+          "subrule_number": "6(1)(d)",
+          "clause": "(d)",
+          "heading": "Date of manufacture, packing, or import",
+          "text": "The month and year in which the commodity is manufactured or pre-packed or imported shall be mentioned in the package.",
+          "keywords": ["date of manufacture", "date of packing", "month and year", "mfd", "pkd", "imported", "expiry", "best before"]
+        },
+        {
+          "subrule_number": "6(1)(da)",
+          "clause": "(da)",
+          "heading": "Maximum Retail Price (MRP)",
+          "text": "The retail sale price of the package in the form of Maximum Retail Price (MRP) inclusive of all taxes in Indian currency shall be clearly declared.",
+          "keywords": ["maximum retail price", "mrp", "retail sale price", "inclusive of all taxes", "indian rupees", "rs", "inr"]
+        },
+        {
+          "subrule_number": "6(1)(e)",
+          "clause": "(e)",
+          "heading": "Consumer care and complaints contact details",
+          "text": "The name, address, telephone number, e-mail address, if available, of the person who can be or the office which can be contacted, in case of consumer complaints shall be stated.",
+          "keywords": ["consumer care", "consumer complaints", "helpline", "telephone number", "email address", "customer care", "toll free"]
+        },
+        {
+          "subrule_number": "6(1)(f)",
+          "clause": "(f)",
+          "heading": "Country of origin",
+          "text": "The name of the country of origin or manufacture or assembly in case of imported products shall be mentioned on the package.",
+          "keywords": ["country of origin", "made in", "imported from", "country of manufacture", "assembly", "origin"]
+        }
+      ]
+    },
+    {
+      "rule_number": "Rule 9",
+      "heading": "Manner in which declaration shall be made",
+      "text": "(1) Every declaration which is required to be made on a package under these rules shall be legible and prominent. (2) The declaration of net quantity shall be in terms of standard metric units.",
+      "subrules": [
+        {
+          "subrule_number": "9(1)",
+          "clause": "9(1)",
+          "heading": "Legibility and prominence of declarations",
+          "text": "Every declaration which is required to be made on a package under these rules shall be legible and prominent.",
+          "keywords": ["legible", "prominent", "conspicuous", "visibility", "manner of declaration"]
+        },
+        {
+          "subrule_number": "9(2)",
+          "clause": "9(2)",
+          "heading": "Standard metric units requirement",
+          "text": "The declaration of net quantity shall be in terms of standard metric units of weight, measure or number.",
+          "keywords": ["metric units", "standard units", "kilogram", "gram", "litre", "millilitre"]
+        }
+      ]
+    },
+    {
+      "rule_number": "Rule 18",
+      "heading": "Provisions relating to wholesale dealer and retail dealer",
+      "text": "(1) No wholesale dealer or retail dealer shall sell, distribute, deliver, display or offer for sale any commodity in packed form at a price exceeding the retail sale price thereof.",
+      "subrules": [
+        {
+          "subrule_number": "18(1)",
+          "clause": "18(1)",
+          "heading": "Prohibition of selling above Maximum Retail Price",
+          "text": "No wholesale dealer or retail dealer shall sell, distribute, deliver, display or offer for sale any commodity in packed form at a price exceeding the retail sale price thereof.",
+          "keywords": ["overcharging", "exceeding mrp", "retail dealer", "maximum retail price", "sale price"]
+        }
+      ]
+    }
+  ]
+}

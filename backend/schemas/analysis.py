@@ -73,12 +73,23 @@ class ExtractedFields(BaseModel):
     country_of_origin: FieldResult[str] = Field(default_factory=lambda: FieldResult[str](status=ExtractionStatus.NOT_VERIFIABLE))
 
 
+from backend.compliance.models import ComplianceResult
+from backend.evidence.models import EvidenceItem
+
+
 class ImageAnalysisResponse(BaseModel):
     """
-    Exact response format for POST /api/v1/analyze/image
-    as specified in Milestone 1.
+    Unified response format for POST /api/v1/analyze/image
+    covering Milestone 1 (IQA, OCR, Fields), Milestone 2 (Compliance), and Milestone 3 (Evidence).
     """
     success: bool = True
     image_quality: ImageQualityResult
     ocr: OCRResult
     fields: ExtractedFields
+    compliance: Optional[ComplianceResult] = Field(
+        None, description="Deterministic Legal Metrology compliance findings (Milestone 2)"
+    )
+    evidence: List[EvidenceItem] = Field(
+        default_factory=list, description="Extracted visual evidence bounding regions (Milestone 3)"
+    )
+

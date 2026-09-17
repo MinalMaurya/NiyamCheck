@@ -1,0 +1,36 @@
+{
+  "source_id": "PCAR-2021",
+  "title": "Legal Metrology (Packaged Commodities) Amendment Rules, 2021",
+  "authority": "Department of Consumer Affairs, Ministry of Consumer Affairs, Food and Public Distribution, Government of India",
+  "document_type": "AMENDMENT",
+  "publication_date": "2021-11-02",
+  "effective_date": "2022-12-01",
+  "version": "G.S.R. 779(E)",
+  "source_url": "https://consumeraffairs.nic.in/sites/default/files/GSR779.pdf",
+  "jurisdiction": "India",
+  "status": "ACTIVE",
+  "content": "In exercise of the powers conferred by sub-section (1) read with clauses (j) and (q) of sub-section (2) of section 52 of the Legal Metrology Act, 2009 (1 of 2010), the Central Government hereby makes the Legal Metrology (Packaged Commodities) Amendment Rules, 2021.\n\nKey Amendments:\n1. Unit Sale Price (USP): In rule 6, after clause (d), the following clause shall be inserted, namely:—\n(e) the unit sale price in rupees, rounded off to the nearest two decimal places, shall be declared on every package as follows:—\n(i) per gram where net quantity is less than one kilogram and per kilogram where net quantity is more than one kilogram;\n(ii) per millilitre where net volume is less than one litre and per litre where net volume is more than one litre;\n(iii) per number or piece where item is sold by number.\n\n2. Date declaration format: In rule 6, in sub-rule (1), for clause (d), the following shall be substituted: The month and year in which the commodity is manufactured or pre-packed shall be declared in standard numeral or word format.",
+  "rules": [
+    {
+      "rule_number": "Rule 6 Amendment",
+      "heading": "Mandatory Unit Sale Price (USP) and Standardized Date Format",
+      "text": "Amendments to Rule 6 introducing mandatory Unit Sale Price declaration and rationalizing date declarations.",
+      "subrules": [
+        {
+          "subrule_number": "6(1)(11-USP)",
+          "clause": "USP",
+          "heading": "Unit Sale Price declaration requirement",
+          "text": "The unit sale price in rupees, rounded off to the nearest two decimal places, shall be declared on every package in terms of standard unit (per gram, per kilogram, per millilitre, per litre, or per item).",
+          "keywords": ["unit sale price", "usp", "per gram", "per kg", "per ml", "per litre", "pricing declaration"]
+        },
+        {
+          "subrule_number": "6(1)(d-Amended)",
+          "clause": "6(1)(d)",
+          "heading": "Standardized date declaration",
+          "text": "The month and year in which the commodity is manufactured or pre-packed shall be clearly declared in words or numerals on the package.",
+          "keywords": ["date of manufacture", "date of packing", "month and year", "numeral format", "word format"]
+        }
+      ]
+    }
+  ]
+}

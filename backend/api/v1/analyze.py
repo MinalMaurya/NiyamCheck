@@ -1,4 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
+from backend.config import settings
 from backend.services.analysis_service import analysis_service
 from backend.schemas.analysis import ImageAnalysisResponse
 
@@ -27,6 +28,11 @@ async def analyze_image(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Uploaded file is empty. Please provide a valid package image.",
+        )
+    if len(contents) > settings.MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Uploaded file exceeds maximum size limit of {settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)}MB.",
         )
 
     response = analysis_service.analyze_image_bytes(contents)

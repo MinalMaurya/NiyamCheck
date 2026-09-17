@@ -1,0 +1,29 @@
+{
+  "source_id": "PCAR-2022",
+  "title": "Legal Metrology (Packaged Commodities) Amendment Rules, 2022",
+  "authority": "Department of Consumer Affairs, Ministry of Consumer Affairs, Food and Public Distribution, Government of India",
+  "document_type": "AMENDMENT",
+  "publication_date": "2022-03-28",
+  "effective_date": "2022-04-01",
+  "version": "G.S.R. 226(E)",
+  "source_url": "https://consumeraffairs.nic.in/sites/default/files/GSR226_0.pdf",
+  "jurisdiction": "India",
+  "status": "ACTIVE",
+  "content": "In exercise of the powers conferred by sub-section (1) read with clauses (j) and (q) of sub-section (2) of section 52 of the Legal Metrology Act, 2009 (1 of 2010), the Central Government hereby makes the Legal Metrology (Packaged Commodities) Amendment Rules, 2022.\n\nAmendments to Rule 6:\nIn rule 6, in sub-rule (1), for clause (d), the pre-packer or manufacturer may declare either the month and year of manufacture or the month and year of pre-packing or import, affording compliance flexibility for industrial packaging operations.",
+  "rules": [
+    {
+      "rule_number": "Rule 6 Flexibility Amendment",
+      "heading": "Date of Manufacture or Pre-packing Flexibility",
+      "text": "Flexibility in declaring either month and year of manufacture or pre-packing.",
+      "subrules": [
+        {
+          "subrule_number": "6(1)(d-2022)",
+          "clause": "6(1)(d)",
+          "heading": "Manufacture vs Pre-packing Date Option",
+          "text": "The manufacturer or packer may at their option declare either the month and year of manufacture or the month and year of pre-packing, provided such declaration is clearly legible.",
+          "keywords": ["date of manufacture", "date of pre-packing", "mfg date", "packing date", "flexibility", "month and year"]
+        }
+      ]
+    }
+  ]
+}

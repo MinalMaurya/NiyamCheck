@@ -11,11 +11,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
 from backend.api.v1.analyze import router as analyze_router
+from backend.api.v1.inspections import router as inspections_router
+from backend.api.v1.legal import router as legal_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="NiyamCheck — Legal Metrology Compliance Inspection Platform. Milestone 1: OCR + Product Information Extraction.",
+    description=(
+        "NiyamCheck — Legal Metrology Compliance Inspection Platform. "
+        "Milestones 1-7: Full End-to-End Compliance Verification Pipeline, "
+        "Multi-Image Package Aggregation, Authoritative Legal RAG, PWA, "
+        "Real-World Hardening & SIH Demo Readiness."
+    ),
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
@@ -30,16 +37,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount Milestone 1 endpoint: POST /api/v1/analyze/image
+# Mount Routers
 app.include_router(analyze_router, prefix=f"{settings.API_V1_STR}/analyze", tags=["Analysis"])
+app.include_router(inspections_router, prefix=f"{settings.API_V1_STR}/inspections", tags=["Inspections"])
+app.include_router(legal_router, prefix=f"{settings.API_V1_STR}/legal", tags=["Legal Knowledge Base"])
 
 
 @app.get("/", tags=["Root"])
 async def root():
     return {
         "service": settings.PROJECT_NAME,
+        "version": settings.VERSION,
         "milestone": "Milestone 1: OCR + Product Information Extraction",
-        "api_endpoint": f"{settings.API_V1_STR}/analyze/image",
+        "milestones": "Milestones 1-7: OCR, Rule Engine, Evidence Mapping, Aggregation, Legal RAG, PWA & Field Hardening",
+        "endpoints": {
+            "single_image": f"{settings.API_V1_STR}/analyze/image",
+            "inspections": f"{settings.API_V1_STR}/inspections",
+            "legal": f"{settings.API_V1_STR}/legal",
+        },
         "docs_url": "/docs",
     }
 
