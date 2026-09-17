@@ -1,331 +1,303 @@
-# NiyamCheck (नियमचेक)
+# NiyamCheck
 
-> **Automated Legal Metrology Compliance Verification System for Packaged Commodities**  
-> *Empowering Enforcement Officers, Protecting Consumer Rights*
+> **AI-assisted Legal Metrology compliance inspection system for packaged-product declarations**
 
-[![Team](https://img.shields.io/badge/Team-CodeHexa-blue.svg)](https://github.com/)
-[![SIH Problem Statement](https://img.shields.io/badge/SIH%202026-SIH26034-orange.svg)](https://www.sih.gov.in/)
-[![Status](https://img.shields.io/badge/Status-Foundation%20Phase-yellow.svg)](./README.md)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
+[![Status: Milestone 7 Complete](https://img.shields.io/badge/Status-Milestone%207%20Complete-green.svg)](#current-milestone-status)
+[![SIH: 2026 Prototype](https://img.shields.io/badge/SIH%202026-Prototype%20Demo%20Ready-blue.svg)](#current-milestone-status)
+[![Backend: Python 3.10+](https://img.shields.io/badge/Backend-Python%203.10%2B%20%7C%20FastAPI-blue.svg)](#technology-stack)
+[![Frontend: React 18 + Vite](https://img.shields.io/badge/Frontend-React%2018%20%7C%20Vite%205-purple.svg)](#technology-stack)
+[![Tests: Passing](https://img.shields.io/badge/Tests-139%20Backend%20%7C%2023%20Frontend%20Passing-brightgreen.svg)](#testing)
 
----
+NiyamCheck is a prototype inspection platform designed to assist in verifying mandatory packaging declarations under Indian Legal Metrology regulations. The system analyzes visible declarations from submitted package images, evaluates configured Legal Metrology rules deterministically, maps findings directly to bounding-box image evidence, retrieves source-linked legal material from an authoritative statutory knowledge base, and generates structured inspection reports in JSON and PDF formats.
 
-## 📌 Project Metadata
-
-- **Project Name:** NiyamCheck
-- **Team Name:** CodeHexa
-- **Competition:** Smart India Hackathon (SIH) 2026
-- **Problem Statement ID:** SIH26034
-- **Problem Statement Title:** Software System to check compliance of Packaged Commodities under the Legal Metrology (Packaged Commodities) Rules, 2011 by scanning products, images and labels.
+> [!NOTE]
+> **Prototype Notice:** NiyamCheck is an AI-assisted compliance inspection prototype developed for the Smart India Hackathon 2026 (Problem Statement: SIH26034, Team: CodeHexa). It is **not** an official government system, **not** an official certification authority, and **not** a substitute for official legal or enforcement determinations.
 
 ---
 
-## 🔍 Problem Overview
+## 📌 Problem Overview
 
-Under the **Legal Metrology (Packaged Commodities) Rules, 2011** (and its subsequent amendments), every pre-packaged commodity distributed, sold, or offered for sale in India must carry mandatory declarations on its principal display panel and package surfaces. These mandatory declarations include:
+Under the Legal Metrology (Packaged Commodities) Rules, 2011, pre-packaged goods sold in India are required to carry specific mandatory declarations on their packaging surfaces. In real-world packaging, these declarations are often:
+* Distributed across multiple panels (front, back, sides, top, bottom)
+* Printed in small, dense, or styled typography
+* Subject to varied packaging geometries, lighting conditions, and partial views
 
-1. **Name and Address** of the manufacturer, packer, or importer.
-2. **Generic or Common Name** of the commodity contained in the package.
-3. **Net Quantity** in standard units of weight, measure, or number.
-4. **Month and Year of Manufacture / Packing / Import**.
-5. **Maximum Retail Price (MRP)** inclusive of all taxes, with unit sale price where required.
-6. **Consumer Care Details** (name, address, telephone number, and email of grievance officer/helpline).
-7. **Country of Origin** (for imported goods and e-commerce offerings).
-8. **Best Before / Expiry Date** where applicable under relevant product category standards.
-9. **Sizes and Dimensions** where relevant for specific commodity classes.
-
-### The Enforcement Challenge
-
-- **Enormous Scale:** Millions of packaged SKUs circulate through physical retail stores, warehouses, and online marketplaces.
-- **Manual, Slow Inspection:** Enforcement officers must manually verify small print, font sizes, specific phrasing, and arithmetic consistency across crowded packaging.
-- **Subjectivity & Human Error:** Manual checks often miss hidden or poorly printed declarations or lead to inconsistent enforcement disputes.
-- **E-Commerce & Digital Gaps:** Verifying compliance across physical packages versus digital catalog listings creates a dual-front challenge.
+Inspecting packages manually across multiple faces can be tedious and prone to human oversight. NiyamCheck assists this process by extracting visible declarations from one or more photographs of a package, aggregating declarations across panels, running deterministic compliance checks against codified rules, indexing visual evidence, and grounding each evaluation in relevant statutory provisions.
 
 ---
 
-## 💡 Proposed Solution
+## 🏗️ Architecture & Pipeline
 
-**NiyamCheck** is an intelligent, open-world compliance verification software platform designed specifically for legal metrology enforcement officers and consumer affairs authorities. 
+NiyamCheck processes package images through a linear, deterministic pipeline:
 
-Rather than functioning as a black-box product catalog, **NiyamCheck operates on first principles**: it assesses the declarations physically present on any product package, maps them against versioned regulatory requirements, and outputs deterministic, evidence-backed verdicts.
-
-### Key Capabilities
-
-1. **Image Quality Assessment (IQA):** Validates uploaded multi-angle package photos for sharpness, glare, resolution, and angle before processing.
-2. **Robust Vision & Multi-Engine OCR:** Detects packaging text, stamps, barcode/QR areas, and numeric panels across complex surfaces, curved bottles, foils, and pouches.
-3. **Structured Declaration Extraction:** Maps recognized text into canonical regulatory data schemas using domain-specific layout analysis and NER heuristics.
-4. **Deterministic, Versioned Rule Engine:** Executes rule checks against the codified Legal Metrology Rules, 2011 without hallucination or hardcoded assumptions.
-5. **Nuanced Declaration State Model:** Avoids penalizing products for poor lighting or partial folds by distinguishing between:
-   - `PRESENT` — Clearly detected, localized, and parsed.
-   - `MISSING` — Verified absence after high-confidence full package scan.
-   - `UNCLEAR` — Potential presence detected but OCR confidence/resolution insufficient for legal certainty.
-   - `NOT_APPLICABLE` — Exemption or rule not binding for this product category/packaging format.
-   - `NOT_VERIFIABLE` — Package face obscured or required contextual view missing.
-6. **Auditable Evidence & Bounding-Box Localizer:** Every flagged infraction or passed declaration links directly to visual bounding boxes on the original package image.
-7. **Structured Inspection Report Generator:** Generates standardized, tamper-evident PDF inspection reports with visual evidence and statutory citations.
-8. **Inspection History & Audit Trail:** Maintains secure case files for enforcement officers and judicial scrutiny.
-
----
-
-## ⚖️ Core Design Principles
-
-### 1. Open-World Architecture (Not a Closed-Set Classifier)
-- The system **never** assumes a closed catalog of products. A brand-new commodity launched yesterday that the system has never seen before can be analyzed with the exact same rigor as any standard commodity.
-- Datasets are used strictly for training and validating OCR accuracy, text detection, and layout understanding — **not** for memorizing product names.
-
-### 2. Legal Metrology Rules as the Single Source of Truth
-- No legal requirements are invented or assumed.
-- Compliance rules are isolated into declarative, versioned rule definitions (`data/legal_rules/`) that can be updated as amendments and notifications are published in the Official Gazette.
-
-### 3. Explainability & Human-in-the-Loop Integrity
-- Enforcement actions carry legal and financial consequences. The system does not emit opaque probabilities; it generates structured rationale:
-  - **Verdict:** `COMPLIANT` | `NON-COMPLIANT` | `NEEDS_MANUAL_REVIEW`
-  - **Evidence:** Exact text snippet, bounding box coordinates, image identifier, and cited Legal Metrology rule/sub-rule.
-- If text is illegible or occluded, the system flags `UNCLEAR` / `NEEDS_MANUAL_REVIEW` instead of falsely alleging a missing mandatory declaration.
-
----
-
-## 🏛️ High-Level Architecture
-
-```
-                               ┌──────────────────────────────────────────────┐
-                               │             Client Applications              │
-                               │  - Modern Web Dashboard (Desktop/Tablet)     │
-                               │  - Field Officer Mobile Web Upload Interface │
-                               └──────────────────────┬───────────────────────┘
-                                                      │ HTTPS / REST API
-                                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                   Backend API Layer (FastAPI)                                       │
-│  - Authentication & Role-Based Access (Enforcement Officer, Supervisor, Admin)                     │
-│  - Inspection Job Coordinator & Session Manager                                                     │
-│  - Evidence Storage & Inspection Audit Repository                                                   │
-└──────────┬──────────────────────────────────────────┬──────────────────────────────────────┬────────┘
-           │                                          │                                      │
-           ▼                                          ▼                                      ▼
-┌───────────────────────┐                  ┌───────────────────────┐              ┌──────────────────┐
-│  Image Processing     │                  │  Vision & OCR Engine  │              │  Reporting       │
-│  & Quality Validation │                  │  (Multi-Engine/Hybrid)│              │  Engine          │
-├───────────────────────┤                  ├───────────────────────┤              ├──────────────────┤
-│ - Resolution Check    │                  │ - Text Detection      │              │ - PDF Reports    │
-│ - Blur (Laplacian)    │                  │ - Layout Analysis     │              │ - Tamper-evident │
-│ - Glare & Lighting    │                  │ - Text Recognition    │              │   audit record   │
-│ - Perspective / Crop  │                  │ - Bounding Box Map    │              │ - Summary stats  │
-└──────────┬────────────┘                  └──────────┬────────────┘              └──────────────────┘
-           │                                          │
-           └──────────────────┬───────────────────────┘
-                              ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                              Canonical Information Extraction Layer                                 │
-│  - Commodity Generic Name Extractor           - Net Quantity Normalizer (g, kg, ml, L, m, units)    │
-│  - Manufacturer / Packer / Importer Parser    - Date Parser (Mfg/Pack/Expiry format validator)      │
-│  - Maximum Retail Price (MRP & USP) Matcher   - Consumer Care & Grievance Details Extractor         │
-└─────────────────────────────────────────────────────┬───────────────────────────────────────────────┘
-                                                      │
-                                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                            Deterministic Regulatory Compliance Engine                               │
-│  - Rule Version Resolver (Selects applicable ruleset version based on packing/mfg date)             │
-│  - Mandatory Declarations Checker (Rule 6 validation)                                               │
-│  - Font Size & Area Proportionality Assessor (Principal Display Panel ratio analysis)               │
-│  - Net Quantity Units & Rounding Validator (First/Second Schedule compliance)                       │
-│  - Dual-Faceted Unit Sale Price (USP) Validator                                                     │
-│  - Decision Matrix: COMPLIANT | NON-COMPLIANT | NEEDS_MANUAL_REVIEW                                 │
-└─────────────────────────────────────────────────────┬───────────────────────────────────────────────┘
-                                                      │
-                                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                              Database & Versioned Rule Store                                        │
-│  - Relational Database (Inspection Sessions, Evidence BBoxes, Verdicts, Audit Trails)               │
-│  - Versioned Legal Rules Repository (Declarative JSON/YAML rule schemas & statutory references)     │
-└─────────────────────────────────────────────────────────────────────────────────────────────────────┘
+```text
+Package Images
+      │
+      ▼
+Image Validation / Quality Assessment
+      │
+      ▼
+OCR + Field Extraction
+      │
+      ▼
+Multi-Image Aggregation
+      │
+      ▼
+Deterministic Compliance Rule Engine
+      │
+      ├──────────────► Evidence Mapping
+      │
+      ▼
+Legal Knowledge Retrieval
+      │
+      ▼
+Inspection Results
+      │
+      ├──────────────► Inspection History
+      │
+      └──────────────► JSON / PDF Inspection Report
 ```
 
 ---
 
-## 📦 Repository Structure
+## 🔍 Implemented Capabilities
 
-```
+### 1. Image Analysis & Ingestion
+* **Image Quality Assessment (IQA):** Evaluates uploaded image suitability using Laplacian variance for blur detection, brightness/contrast profiling for glare and dark exposure, and format/resolution validation.
+* **OCR Text & Region Detection:** Extracts detected text lines along with normalized bounding box coordinates `[ymin, xmin, ymax, xmax]` scaled between `0.0` and `1.0`.
+* **Structured / Open-World Field Extraction:** Regex- and heuristic-based extraction for 8 canonical Legal Metrology declaration fields without assuming a closed product catalog:
+  - Product Name / Identity
+  - Net Quantity & Measurement Units
+  - Maximum Retail Price (MRP)
+  - Manufacturer / Packer / Importer Name
+  - Postal Address & 6-Digit PIN Code
+  - Date of Manufacture / Packing / Import
+  - Consumer Care Helpline & Contact Info
+  - Country of Origin
+* **Multi-Panel Image Inspection:** Supports uploading photos from multiple panels (`FRONT`, `BACK`, `LEFT`, `RIGHT`, `TOP`, `BOTTOM`, `UNKNOWN`) to evaluate a complete package.
+* **Image Validation:** Rejects empty byte streams, verifies file formats (JPEG, PNG, WebP), and enforces payload size quotas.
+* **Client-Side Image Resizing:** Automatically downscales high-resolution camera uploads to a maximum 1920px canvas width on the client before network transmission.
+
+### 2. Deterministic Compliance Rule Engine
+* **Pure Python Declarative Evaluation:** Rule evaluation is completely deterministic, transparent, and auditable, with zero LLM hallucinations in compliance verdicts.
+* **Standardized Status Vocabulary:** Every rule evaluation and overall inspection outputs one of the following conservative statuses:
+  - `COMPLIANT`: All mandatory elements verified with high confidence.
+  - `NON_COMPLIANT`: Confirmed absence or violation of a mandatory requirement on fully verified panels.
+  - `PARTIALLY_VERIFIABLE`: Some mandatory fields detected and compliant, but one or more declarations remain unobserved or uncertain.
+  - `UNCLEAR`: Potential text detected, but OCR confidence or visibility is insufficient for legal certainty.
+  - `NOT_VERIFIABLE`: Required packaging face unphotographed, obscured, or illegible.
+* **Incomplete Evidence Handling:** If a declaration is not observed on an uploaded image, the engine conservatively marks it `NOT_VERIFIABLE` rather than falsely asserting a legal violation.
+
+### 3. Visual Evidence Mapping
+* **Normalized Bounding Box Mapping:** Every extracted value and rule evaluation links directly to its detected text line and bounding box coordinates on the source packaging image.
+* **Multi-Panel Provenance:** Each piece of evidence records its source `image_id`, packaging `panel`, OCR text, and confidence score.
+* **Interactive Frontend Overlays:** The web interface renders interactive bounding-box overlays over uploaded packaging images with SVG/canvas highlighting.
+
+### 4. Authoritative Legal Knowledge Base & Retrieval
+* **Local Authoritative Corpus:** Codified statutory documents stored locally in structured JSON format (`data/legal/sources/`):
+  - *The Legal Metrology Act, 2009 (Act No. 1 of 2010)*
+  - *The Legal Metrology (Packaged Commodities) Rules, 2011 (G.S.R. 427(E))*
+  - *The Legal Metrology (Packaged Commodities) Amendment Rules, 2021 (G.S.R. 779(E))*
+  - *The Legal Metrology (Packaged Commodities) Amendment Rules, 2022 (G.S.R. 226(E))*
+* **Hierarchical Statutory Chunks:** Granular chunks indexed by Act/Rule, section, rule number, and sub-rule.
+* **Deterministic Lexical / BM25-Style Retrieval:** Scores and ranks statutory provisions against rule requirements and keywords.
+* **Citation Traceability:** Direct links to official publications on `consumeraffairs.nic.in` for every statutory citation.
+* **Deterministic Grounded Explanations:** Explanations synthesized strictly from the codified rule findings and retrieved statutory text without generative hallucinations.
+
+### 5. Inspection Sessions & Reporting
+* **Multi-Image Session Aggregation:** Resolves declarations across panels, selecting verified values and highest-confidence OCR candidates.
+* **Inspection History & Session Storage:** In-memory session store allowing inspection retrieval, listing, and review by unique inspection ID (`insp-<uuid>`).
+* **JSON Inspection Report:** Complete machine-readable audit report containing session summary, extracted fields, rule findings, evidence index, and legal citations.
+* **PDF Inspection Report:** Multi-page PDF report generated natively via Pillow with executive summary, findings table, legal basis, and embedded evidence image crops.
+* **SHA-256 Integrity Hash:** The generated report includes a SHA-256 integrity hash that can be used to detect subsequent modification of the report data.
+
+### 6. PWA & Mobile Inspection Capabilities
+* **Responsive Interface:** Adaptive layout with full desktop data tables and mobile-friendly stacked cards with >= 44px touch targets.
+* **Mobile Camera Capture:** Native device camera trigger via HTML5 file input (`capture="environment"`) with fallback to gallery upload.
+* **PWA Web Manifest:** Installable to mobile and desktop home screens with theme metadata and application icons.
+* **Service Worker App Shell Caching:** Precaches static assets (HTML, CSS, JS, icons) with stale-while-revalidate caching.
+* **Strict API Pass-Through:** Zero offline caching of `/api/` network requests — inspection data and analysis always route to the live backend.
+* **IndexedDB Draft Storage:** Local offline drafting allowing inspectors to stage multi-panel photos and metadata before submitting.
+* **Duplicate Submission Protection:** UI submission lock preventing accidental re-submission while an inspection is in flight.
+
+> [!IMPORTANT]
+> **Offline Boundary:** Offline support is strictly limited to local draft preparation and static application shell caching. OCR text extraction, compliance rule evaluation, legal knowledge retrieval, and report generation require an active connection to the FastAPI backend.
+
+---
+
+## ⚖️ Legal Scope
+
+NiyamCheck evaluates visible declarations against specifically configured provisions of Indian Legal Metrology law. The current implementation covers:
+
+### Statutory Instruments Covered
+1. **The Legal Metrology Act, 2009 (Act No. 1 of 2010):** Section 18 (prohibiting manufacture, packing, sale, or distribution of non-conforming pre-packaged commodities).
+2. **The Legal Metrology (Packaged Commodities) Rules, 2011 (G.S.R. 427(E)):**
+   - **Rule 6(1):** Mandatory declarations on pre-packaged commodities.
+   - **Rule 9:** Prescribed units of weight, measure, or number.
+3. **The Legal Metrology (Packaged Commodities) Amendment Rules, 2021 (G.S.R. 779(E)):** Unit sale price (USP) and country of origin requirements.
+4. **The Legal Metrology (Packaged Commodities) Amendment Rules, 2022 (G.S.R. 226(E)):** Provisions for electronic products and declaration flexibilities.
+
+### Codified Rule Catalog (`backend/compliance/rules.py`)
+
+| Rule ID | Rule Name | Category | Description | Severity |
+|---|---|---|---|---|
+| `LM-PN-001` | Product Identification | Product Identity | Common or generic name of the pre-packaged commodity printed on the package. | Mandatory |
+| `LM-NQ-001` | Net Quantity Declaration | Quantity | Net quantity in standard metric units of weight, measure, or number. | Mandatory |
+| `LM-MRP-001` | Maximum Retail Price (MRP) | Pricing | Maximum Retail Price inclusive of all taxes declared in INR. | Mandatory |
+| `LM-MFG-001` | Manufacturer / Responsible Entity | Manufacturer | Name of the manufacturer, packer, or importer responsible for the package. | Mandatory |
+| `LM-ADDR-001` | Address of Manufacturer / Packer | Address | Postal address and valid 6-digit PIN code of the responsible entity. | Mandatory |
+| `LM-DATE-001` | Date Information (Mfg / Packing) | Dates | Month and year of manufacture, packing, or import. | Mandatory |
+| `LM-CARE-001` | Consumer Care Details | Consumer Care | Helpline phone number, email address, or redressal details. | Mandatory |
+| `LM-COO-001` | Country of Origin | Origin | Explicit declaration of country of origin for packaged goods. | Conditional |
+
+> [!WARNING]
+> **Scope Limitation:** The system is strictly codified for the 8 rules listed above. It does not evaluate other sub-rules, exemptions, Schedule II commodity weight variations, or non-Legal Metrology regulations such as FSSAI (food safety), BIS (standards), drugs, or cosmetics.
+
+---
+
+## 💻 Technology Stack
+
+The project relies exclusively on the following verified dependencies:
+
+### Backend
+* **Runtime:** Python 3.10+
+* **Web Framework:** FastAPI `>=0.110.0`
+* **ASGI Server:** Uvicorn (standard) `>=0.28.0`
+* **Data Validation:** Pydantic v2 `>=2.6.0` & Pydantic-Settings `>=2.2.0`
+* **Image Processing:** Pillow (PIL) `>=10.0.0` & NumPy `>=1.24.0`
+* **Multipart Handling:** python-multipart `>=0.0.9`
+* **HTTP Client:** HTTPX `>=0.27.0`
+* **Date Parsing:** python-dateutil `>=2.9.0`
+* **OCR Interface:** Standardized abstraction layer supporting local heuristics, Tesseract, or RapidOCR adapters.
+* **PDF Engine:** Pure Python multi-page PDF generation via Pillow (`PIL.Image`, `PIL.ImageDraw`, `PIL.ImageFont`) with zero external C-dependencies (no ReportLab, no WeasyPrint).
+
+### Frontend
+* **Runtime / Bundler:** Node.js (v18+) & Vite 5 (`vite` `^5.3.4`)
+* **Framework:** React 18 (`react` `^18.3.1`, `react-dom` `^18.3.1`)
+* **Styling:** Vanilla CSS (`src/index.css`) with CSS custom properties and responsive media queries (no Tailwind CSS).
+* **Icons:** Lucide React (`lucide-react` `^1.16.0`)
+* **Storage:** Browser IndexedDB via native promise wrappers for offline draft caching.
+
+### Automated Testing
+* **Backend:** Python standard library `unittest` framework (`.venv/bin/python -m unittest discover tests`).
+* **Frontend:** Node.js native test runner (`node --test test/**/*.test.js`).
+
+---
+
+## 📁 Repository Structure
+
+```text
 NiyamCheck/
-│
-├── backend/                  # FastAPI REST API, inspection workflows, pipelines
-├── frontend/                 # React/TypeScript modern web application for inspectors
+├── README.md                            # Project overview, architecture, and documentation
+├── LICENSE                              # MIT License
+├── backend/
+│   ├── api/
+│   │   └── v1/
+│   │       ├── analyze.py               # Single image analysis endpoint
+│   │       ├── inspections.py           # Multi-image inspection sessions & reporting endpoints
+│   │       └── legal.py                 # Legal knowledge search and source listing endpoints
+│   ├── cli/
+│   │   └── analyze_image.py             # Standalone CLI tool for single/multi-panel inspections
+│   ├── compliance/
+│   │   ├── engine.py                    # Deterministic compliance rule engine
+│   │   ├── models.py                    # RuleDefinition, RuleEvaluation, ComplianceResult
+│   │   ├── rules.py                     # Catalog of 8 codified Legal Metrology rules
+│   │   └── validators.py                # Individual field validator routines
+│   ├── config.py                        # Application settings and environment configuration
+│   ├── evidence/
+│   │   ├── mapper.py                    # Bounding-box and token evidence mapper
+│   │   └── models.py                    # BoundingBox, NormalizedCoordinate, EvidenceItem
+│   ├── extraction/
+│   │   ├── base.py                      # Base extractor interface
+│   │   ├── open_world.py                # Open-world field extraction implementation
+│   │   └── parsers.py                   # Regex patterns for MRP, dates, quantities, PIN codes
+│   ├── image_quality/
+│   │   └── assessor.py                  # Image Quality Assessment (blur, glare, resolution)
+│   ├── inspections/
+│   │   ├── aggregator.py                # Cross-panel declaration and finding aggregator
+│   │   ├── models.py                    # InspectionSession, InspectionImage, PanelType
+│   │   └── store.py                     # In-memory inspection session and image binary cache
+│   ├── legal_knowledge/
+│   │   ├── chunks.py                    # Statutory chunk registry
+│   │   ├── citations.py                 # Official citation formatter and validator
+│   │   ├── documents.py                 # Legal document metadata registry
+│   │   ├── explainer.py                 # Grounded legal explanation generator
+│   │   ├── models.py                    # LegalDocument, LegalChunk, LegalBasis
+│   │   ├── retriever.py                 # Keyword / lexical BM25-style retriever
+│   │   └── service.py                   # Legal knowledge facade service
+│   ├── main.py                          # FastAPI application factory and router mounting
+│   ├── ocr/
+│   │   ├── base.py                      # OCR engine abstraction interface
+│   │   └── engine.py                    # OCR pipeline coordinator
+│   ├── reporting/
+│   │   ├── hasher.py                    # SHA-256 integrity hash calculator
+│   │   ├── models.py                    # InspectionReport, RuleFinding, ReportSummary
+│   │   ├── pdf_generator.py             # Native Pillow-based multi-page PDF report generator
+│   │   └── report_service.py            # Report compilation and export service
+│   ├── requirements.txt                 # Backend Python dependencies
+│   ├── schemas/
+│   │   └── analysis.py                  # Pydantic schemas for IQA, OCR, and field extraction
+│   └── services/
+│       └── analysis_service.py          # Unified image analysis orchestration service
 ├── data/
-│   ├── legal_rules/          # Versioned statutory rule definitions & gazette specs
-│   ├── product_images/       # Packaged commodity test images (multi-angle views)
-│   ├── annotations/          # Ground truth declaration annotations for benchmarks
-│   └── test_cases/           # Synthetic & edge-case compliance test fixtures
-│
-├── docs/                     # Architecture, specifications, legal citations, dev guides
-├── models/                   # Model configuration, weights, and fine-tuning artifacts
-├── notebooks/                # Experimental exploration (OCR benchmarks, layout testing)
-├── tests/                    # Unit, integration, and rule engine validation suites
-│
-├── .gitignore                # Comprehensive Git exclusions for Python/Node/Data
-├── LICENSE                   # MIT Open-Source License
-└── README.md                 # Project root documentation (this file)
+│   └── legal/
+│       └── sources/                     # Authoritative Legal Metrology Acts and Rules (JSON)
+│           ├── legal_metrology_act_2009.json
+│           ├── packaged_commodities_rules_2011.json
+│           ├── pcr_amendment_rules_2021.json
+│           └── pcr_amendment_rules_2022.json
+├── frontend/
+│   ├── index.html                       # HTML5 entrypoint with PWA meta tags
+│   ├── package.json                     # Frontend dependencies and npm scripts
+│   ├── public/
+│   │   ├── favicon.svg                  # Application favicon
+│   │   ├── manifest.webmanifest         # PWA installation manifest
+│   │   └── sw.js                        # Service Worker with static caching and API bypass
+│   ├── src/
+│   │   ├── App.jsx                      # Main application shell and tab router
+│   │   ├── api/                         # Backend API client (`client.js`, `inspections.js`, `legal.js`)
+│   │   ├── components/                  # UI components (Header, Footer, BoundingBoxViewer, etc.)
+│   │   ├── index.css                    # Vanilla design system (dark/light tokens, responsive styles)
+│   │   ├── pages/                       # Route views (Dashboard, CreateInspection, Results, History, etc.)
+│   │   └── storage/                     # IndexedDB offline draft storage (`draftStore.js`)
+│   ├── test/
+│   │   ├── frontend.test.js             # Frontend unit and integration tests
+│   │   ├── milestone6.test.js           # PWA, hardening, and image validation tests
+│   │   └── milestone7.test.js           # Clamping, status badge, and edge case tests
+│   └── vite.config.js                   # Vite configuration
+└── tests/                               # Backend test suite (29 test modules)
 ```
 
 ---
 
-## 🧩 Planned Modules
+## 🔌 API Endpoints
 
-| Module | Purpose | Location |
+All REST API routes are prefixed under `/api/v1` (with the exception of root and documentation endpoints):
+
+| Method | Endpoint | Summary & Purpose |
 |---|---|---|
-| **Image Ingestion & IQA** | Assesses image suitability, checks glare, lighting, and blur before OCR. | `backend/app/cv/iqa/` |
-| **OCR & Vision Abstraction** | Extracts text and bounding boxes using a pluggable multi-engine pipeline. | `backend/app/cv/ocr/` |
-| **Declaration Parser** | Normalizes raw OCR tokens into structured Legal Metrology declaration fields. | `backend/app/extractors/` |
-| **Compliance Rule Engine** | Evaluates parsed declarations against codified Legal Metrology rules. | `backend/app/rules_engine/` |
-| **Inspection & Case Management** | Coordinates inspection lifecycles, persists verdicts, and tracks audit trails. | `backend/app/services/` |
-| **Report Generator** | Produces exportable inspection reports with bounding-box evidence overlays. | `backend/reporting/` |
-| **Inspector Workbench (UI)** | Interactive web console for uploading images, reviewing flags, and confirming evidence. | `frontend/src/` |
+| `GET` | `/` | Root service metadata and endpoints index. |
+| `GET` | `/docs` | Interactive Swagger / OpenAPI documentation. |
+| `GET` | `/api/v1/health` | Global API service health check. |
+| `POST` | `/api/v1/analyze/image` | Analyze a single packaging image (IQA -> OCR -> Field Extraction). |
+| `GET` | `/api/v1/analyze/health` | Analysis service health check. |
+| `POST` | `/api/v1/inspections` | Create multi-panel packaging inspection session (multipart upload). |
+| `GET` | `/api/v1/inspections` | List all stored inspection sessions. |
+| `GET` | `/api/v1/inspections/{id}` | Retrieve complete aggregated inspection session details. |
+| `GET` | `/api/v1/inspections/{id}/report` | Generate and download inspection report in PDF format. |
+| `GET` | `/api/v1/inspections/{id}/report.json` | Retrieve structured JSON inspection report with audit hash. |
+| `GET` | `/api/v1/inspections/{id}/images/{img_id}` | Retrieve stored packaging panel image binary. |
+| `GET` | `/api/v1/legal/sources` | List loaded authoritative statutory source documents. |
+| `GET` | `/api/v1/legal/search` | Lexically search statutory provisions (`q`, `top_k`). |
+| `GET` | `/api/v1/legal/status` | Retrieve legal knowledge base indexing status and statistics. |
 
 ---
 
-## 🚀 Recommended Technology Stack (Team CodeHexa)
+## 🚀 Quickstart & Setup
 
-Designed specifically for an agile, 6-member student hackathon team balancing speed, robustness, and scientific rigor:
-
-| Tier | Recommended Technology | Rationale & Why |
-|---|---|---|
-| **Backend API** | **FastAPI (Python 3.10+)** | Native interoperability with Python CV/ML libraries; high async throughput; automatic OpenAPI docs; strong schema validation via Pydantic. |
-| **Computer Vision / IQA** | **OpenCV (`opencv-python-headless`) + NumPy** | Standard, fast, CPU-efficient blur (Laplacian variance), glare mask detection, and contour analysis. |
-| **OCR Engine** | **PaddleOCR / RapidOCR / Tesseract** (abstracted interface) | High accuracy on wild text, rotated labels, and diverse packaging fonts. Abstracted behind a standard interface to allow seamless plug-in of vision-language models. |
-| **Information Extraction** | **Rule-based regex parsers + Layout-aware heuristics + Optional Mini-LLM/Spacy** | Critical numeric fields (MRP, dates, quantities) require exact deterministic pattern matching; entity clustering extracts complex addresses. |
-| **Compliance Rule Engine** | **Pure Python Declarative Engine (YAML/JSON Rules)** | Ensures deterministic explainability, auditability, zero hallucinations, and easy versioning without black-box logic. |
-| **Database** | **PostgreSQL (Prod) / SQLite (Local Dev)** | SQLAlchemy ORM allows zero-setup SQLite during early development, seamlessly transitioning to PostgreSQL for multi-user inspection storage. |
-| **Web Frontend** | **React + Vite + Tailwind CSS + Lucide Icons** | Ultra-fast build times, rich UI ecosystem, responsive design for tablet/mobile inspection in the field, and easy canvas/SVG bounding box overlays. |
-| **Report Generation** | **ReportLab / WeasyPrint** | Generates clean, tamper-evident PDF inspection reports with embedded evidence crops. |
-| **Testing** | **Pytest + Pytest-Mock** | Fast test execution for compliance rules, parsing edge cases, and API endpoints. |
-
----
-
-## 🗺️ Development Roadmap
-
-```mermaid
-gantt
-    title NiyamCheck Project Roadmap (SIH 2026)
-    dateFormat  YYYY-MM-DD
-    section Phase 1: Foundation
-    Repository & Architecture Setup      :done,    p1_1, 2026-09-16, 2026-09-17
-    Coding Standards & Spec Definition    :done,    p1_2, 2026-09-17, 2026-09-18
-    section Phase 2: Ingestion & Vision
-    Image Quality Assessment (IQA)       :active,  p2_1, 2026-09-18, 2026-09-22
-    OCR Pipeline & Bounding Box Localizer:         p2_2, 2026-09-21, 2026-09-27
-    section Phase 3: Extraction & Rules
-    Canonical Declaration Parser         :         p3_1, 2026-09-26, 2026-10-02
-    Legal Metrology Rule Engine (v1)     :         p3_2, 2026-10-01, 2026-10-07
-    section Phase 4: UI & Reports
-    Inspector Workbench (Frontend)       :         p4_1, 2026-10-06, 2026-10-14
-    PDF Inspection Report Engine         :         p4_2, 2026-10-12, 2026-10-17
-    section Phase 5: Advanced (Planned)
-    E-Commerce Physical vs Web Crosscheck:         p5_1, 2026-10-18, 2026-10-26
-    Risk-Based Inspection Prioritization :         p5_2, 2026-10-25, 2026-11-05
-```
-
-- **Phase 1: Project Foundation (Current Milestone)**
-  - Repository structure, directory isolation, git hygiene, technology blueprint, architecture specification.
-- **Phase 2: Ingestion & Vision Pipeline**
-  - Image quality filtering (blur/glare detection), multi-engine OCR abstraction, bounding box mapping.
-- **Phase 3: Canonical Parsing & Rule Engine**
-  - Extract MRP, net quantity, dates, manufacturer, consumer care; verify against Legal Metrology Rules, 2011.
-- **Phase 4: Inspector UI & Reporting**
-  - Modern web dashboard, visual evidence inspector, PDF report generator.
-- **Phase 5: Evaluation & Field Hardening**
-  - Benchmark against complex real-world packaging (curved bottles, foil wraps, multi-language packs).
-
----
-
-## 🔮 Advanced Features (Planned / Future Work)
-
-The following features are designed into the long-term architecture and will be tackled in subsequent milestones:
-
-1. **Physical-Package vs Online-Listing Cross-Check:** Automated crawler comparing physical package declarations with e-commerce product detail pages (Amazon, Flipkart, Blinkit, Zepto, etc.) to detect e-commerce declaration non-compliance.
-2. **Risk-Based Inspection Prioritization:** Predictive analytics highlighting brands, manufacturers, or commodity categories with high historical violation rates to optimize field officer deployment.
-3. **Regulatory-Change Impact Analysis:** Simulation engine to test how proposed legal metrology amendments would affect existing compliant/non-compliant product distributions.
-4. **Multilingual & Indic Script Support:** Specialized OCR and extraction for mandatory declarations printed in regional Indian languages.
-5. **Offline-First Mobile PWA:** Progressive Web App with edge-optimized quantized OCR for remote field inspections with low or no connectivity.
-
----
-
-## 🚦 Current Status
-
-- **Status:** **Milestone 7 Complete — Final Integration, Real-World Validation & SIH Demo Readiness**
-  - **Milestone 1:** OCR, Image Quality Assessment (IQA), Structured Field Extraction (Complete)
-  - **Milestone 2:** Deterministic Legal Metrology Compliance Rule Engine (Complete)
-  - **Milestone 3:** Evidence Mapping, Multi-Angle Session Aggregation, PDF/JSON Reports (Complete)
-  - **Milestone 4:** Authoritative Legal Knowledge Base, BM25 Statutory Retrieval & Grounded Explanations (Complete)
-  - **Milestone 5:** Responsive React + Vite Inspector Frontend with Bounding Box Evidence Viewer, Legal Search, and Report Downloader (Complete)
-  - **Milestone 6:** Real-World Hardening, PWA Web Manifest & Service Worker Shell Caching (Strict API Bypass), Mobile Camera Capture (`capture="environment"`), Client-Side Image Downscaling, IndexedDB Offline Draft Persistence, Duplicate Submission Protection, and Responsive Card Views (Complete)
-  - **Milestone 7:** Dedicated End-to-End Integration Test Suite, Real-World Failure Mode Validation (Corrupt, Empty, Oversized, and Degraded Scans), Coordinate Clamping, and Full SIH Demonstration Sequence (Complete)
-
-- **Test Suite Status:**
-  - **Backend:** **139 tests passing (0 failures)** via Python `unittest`
-  - **Frontend:** **23 tests passing (0 failures)** via Node test runner, Vite production build passing
-
----
-
-## 🔄 End-to-End Inspection Pipeline
-
-```
-┌─────────────────┐     ┌──────────────────────┐     ┌──────────────────────┐
-│  Product Images │ ──► │ Image Quality (IQA)  │ ──► │     Vision / OCR     │
-│ (Camera/Upload) │     │  (Blur/Glare/Format) │     │   (Text & Regions)   │
-└─────────────────┘     └──────────────────────┘     └──────────┬───────────┘
-                                                                │
-                                                                ▼
-┌─────────────────┐     ┌──────────────────────┐     ┌──────────────────────┐
-│ Multi-Panel     │ ◄── │  Evidence Mapping    │ ◄── │ Open-World Field     │
-│ Aggregator      │     │  (BBoxes & Panels)   │     │ Extraction (Rule 6)  │
-└────────┬────────┘     └──────────────────────┘     └──────────────────────┘
-         │
-         ▼
-┌─────────────────┐     ┌──────────────────────┐     ┌──────────────────────┐
-│ Deterministic   │ ──► │ Authoritative Legal  │ ──► │  Inspection Report   │
-│ Rule Engine     │     │ Knowledge Base (RAG) │     │      (PDF/JSON)      │
-└─────────────────┘     └──────────────────────┘     └──────────────────────┘
-```
-
-1. **Product Images:** Mobile camera capture (`capture="environment"`) or multi-panel gallery upload (Front, Back, Sides, Top, Bottom).
-2. **Image Validation & Optimization:** Client-side canvas downscaling (max 1920px) and backend IQA check.
-3. **OCR:** Extracts detected text lines and normalized bounding regions `[ymin, xmin, ymax, xmax]`.
-4. **Open-World Field Extraction:** Structured pattern matching for product name, net quantity, MRP, manufacturer, address/PIN, date, consumer care, and country of origin without assuming a closed product catalog.
-5. **Evidence Mapping:** Direct traceability from extracted values to localized visual packaging bounding boxes.
-6. **Multi-Image Aggregation:** Resolves declarations across panels, selecting verified presence and highest OCR confidence.
-7. **Deterministic Compliance Rule Engine:** Audits declarations against codified Legal Metrology Rules, 2011; emits conservative verdicts (`COMPLIANT`, `NON_COMPLIANT`, `PARTIALLY_VERIFIABLE`, `NOT_VERIFIABLE`).
-8. **Authoritative Legal Retrieval (RAG):** Deterministically attaches official Government of India Gazette citations from the Department of Consumer Affairs.
-9. **Inspection Report Generation:** Produces downloadable audit-grade JSON reports with SHA-256 hashes and high-resolution PDF inspection reports.
-
----
-
-## ⚠️ System Limitations & Realistic Operational Boundaries
-
-In accordance with legal metrology standards and audit integrity:
-1. **Observable Declarations Only:** The system evaluates observable declarations printed on packaging surfaces. It does not certify internal contents or physical product composition.
-2. **Photographed Faces:** Unphotographed packaging surfaces are conservatively classified as `NOT_VERIFIABLE` rather than legally missing.
-3. **Physical Font Proportionality:** Exact font heights relative to Principal Display Panel (PDP) area cannot be verified without physical measuring instruments or calibrated physical scales.
-4. **OCR Degradation:** Heavily folded, torn, crinkled, or severely blurred packaging may yield `UNCLEAR` or `NOT_VERIFIABLE` evaluations requiring field officer review.
-5. **Connectivity Requirements:** Offline functionality supports local IndexedDB draft preparation; compliance analysis and legal retrieval require a connection to the FastAPI backend.
-6. **Regulatory Scope:** Strictly codified for Rule 6(1) and Rule 9 of the Legal Metrology (Packaged Commodities) Rules, 2011, Section 18 of the Legal Metrology Act, 2009, and the 2021/2022 amendments (G.S.R. 779(E), G.S.R. 226(E)). Does not evaluate FSSAI, BIS, drug, or cosmetic regulations.
-7. **Statutory Status:** Provides automated regulatory assistance; does not substitute for judicial determinations or official legal or enforcement determinations.
-
----
-
-## 📱 Progressive Web App (PWA) & Mobile Inspection
-
-NiyamCheck includes full Progressive Web App (PWA) and mobile inspection field capabilities:
-1. **Standalone PWA Installability:** Installable to mobile and desktop home screens with official scales branding, theme colors, and maskable icons.
-2. **Offline App Shell Caching:** Service Worker (`sw.js`) precaches static shell assets with stale-while-revalidate strategy.
-3. **Strict API Pass-Through:** Zero caching or offline persistence of private inspection payloads or confidential compliance verdicts — `/api/` calls always pass straight to the network.
-4. **Offline Session Drafts (IndexedDB):** Inspectors can capture photos and prepare multi-angle inspection drafts even without connectivity; drafts persist locally in browser IndexedDB.
-5. **Mobile Camera Capture:** Direct device camera trigger with `capture="environment"` and gallery picker fallback.
-6. **Client-Side Image Optimization:** Automatically downscales heavy 48MP/12MP mobile camera shots to 1920px before upload to conserve field bandwidth while preserving OCR sharpness.
-7. **Network Awareness & Diagnostics:** Live online/offline status detection, sticky offline warning banner, and modal for backend, RAG, and storage diagnostics.
-8. **Mobile-Responsive Inspection Views:** Dual layout with desktop data tables and mobile stacked cards, touch-friendly 44px tap targets, and collapsible navigation drawer.
-
----
-
-## 🚀 Quickstart & Running the Application
+### Prerequisites
+* Python 3.10 or higher
+* Node.js v18 or higher (with npm)
 
 ### 1. Start the FastAPI Backend
 
@@ -333,36 +305,113 @@ NiyamCheck includes full Progressive Web App (PWA) and mobile inspection field c
 # From repository root
 .venv/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-- API Base: `http://localhost:8000`
-- Interactive Swagger Documentation: `http://localhost:8000/docs`
-- Health Endpoint: `http://localhost:8000/api/v1/health`
+* **API Base URL:** `http://localhost:8000`
+* **Interactive Documentation (Swagger):** `http://localhost:8000/docs`
+* **System Health Check:** `http://localhost:8000/api/v1/health`
 
-### 2. Start the React + Vite Frontend
+### 2. Start the React Frontend
 
 ```bash
+# From frontend directory
 cd frontend
 npm install
 npm run dev
 ```
-- Web Application: `http://localhost:5173`
+* **Web Application:** `http://localhost:5173`
 
-### 3. Run Automated Tests
+---
+
+## 🧪 Automated Testing
+
+### Backend Test Suite
+The backend test suite verifies image quality assessment, OCR abstraction, open-world field extraction, compliance rule evaluations, cross-panel session aggregation, legal retrieval, PDF/JSON report generation, failure modes, and end-to-end integration:
 
 ```bash
-# Backend Test Suite (139 tests)
-.venv/bin/python -m unittest discover -s tests -p "test_*.py"
-
-# Frontend Test Suite (23 tests)
-cd frontend && npm test
-
-# Frontend Production Build Verification
-cd frontend && npm run build
+.venv/bin/python -m unittest discover tests
 ```
+* **Result:** **139 tests passed, 0 failed** in ~0.66s.
+
+### Frontend Test Suite
+The frontend test suite validates dashboard calculation, API error formatting, coordinate clamping, conservative status handling, PWA service worker contracts, image validation, and IndexedDB draft persistence:
+
+```bash
+cd frontend
+npm test
+```
+* **Result:** **23 tests passed, 0 failed** in ~54ms.
+
+### Frontend Production Build
+To verify the production asset bundle and compilation:
+
+```bash
+cd frontend
+npm run build
+```
+* **Result:** **Build passing** (Vite production build completed cleanly).
+
+*(Note: Test results reflect automated checks on the implemented code and do not imply that the prototype is completely free of defects or operational edge cases).*
+
+---
+
+## 🚦 Current Milestone Status
+
+```text
+Milestone 1 — Image Analysis & Field Extraction       ✓ Complete
+Milestone 2 — Deterministic Compliance Engine        ✓ Complete
+Milestone 3 — Evidence, Inspection & Reporting       ✓ Complete
+Milestone 4 — Legal Knowledge Base & RAG              ✓ Complete
+Milestone 5 — React Frontend                          ✓ Complete
+Milestone 6 — PWA & Real-World Hardening              ✓ Complete
+Milestone 7 — End-to-End Validation                   ✓ Complete
+```
+
+**Current status: SIH 2026 prototype ready for demonstration.**
+
+---
+
+## 🔮 Future Enhancements
+
+The following capabilities are identified as potential directions for future research and development:
+* **Expanded Regulatory Coverage:** Codifying additional rules under the Legal Metrology Rules (such as Schedule II commodity-specific weight tolerances) and adjacent frameworks.
+* **Broader Multilingual & Indic Script OCR:** Integrating language-specific models for mandatory declarations printed in regional Indian languages.
+* **E-Commerce vs. Physical Package Cross-Check:** Comparing physical package declarations against e-commerce product listings (Amazon, Blinkit, etc.).
+* **Persistent Production Database:** Migrating session storage from in-memory cache to PostgreSQL with database migrations.
+* **Deployment Infrastructure:** Containerization (Docker), CI/CD build automation, and cloud hosting configurations.
+* **Extended Field-Inspection Workflows:** Geotagging and digital signature integration for enforcement field kits.
+
+---
+
+## ⚠️ Known Operational Limitations
+
+1. **Observable Declarations Only:** The system evaluates visible declarations printed on submitted packaging surfaces. It does not verify internal contents, chemical purity, or net weight accuracy on physical scales.
+2. **OCR Quality Dependency:** Text extraction accuracy is constrained by image focus, lighting, glare, packaging fold angles, and font typography.
+3. **Unphotographed Package Faces:** Declarations not present in submitted images are conservatively marked `NOT_VERIFIABLE` rather than asserted as confirmed violations.
+4. **Physical Font Proportionality:** Ratio of font height to Principal Display Panel (PDP) surface area cannot be definitively verified without physical measurements or calibrated optics.
+5. **Physical Composition Excluded:** The system does not inspect manufacturing ingredients or physical product properties.
+6. **Configured Rule Scope:** Verification is restricted to the 8 codified Legal Metrology rules; rules outside this set are not evaluated.
+7. **Knowledge Base Scope:** Statutory retrieval depends on the 4 authoritative source documents currently ingested in the local knowledge base.
+8. **Connectivity Requirement:** OCR, compliance evaluation, statutory retrieval, and report generation require an active connection to the backend server.
+9. **Offline Boundary:** Offline PWA functionality is limited to static application shell caching and local IndexedDB draft staging.
+10. **Reports Are Not Government Certificates:** Generated PDF outputs are structured inspection reports designed for audit assistance, not official government certificates.
+11. **Statutory Status:** System results are automated informational assessments and do not substitute for official legal or judicial determinations.
+
+---
+
+## 🛡️ Reliability & Security Measures
+
+The implemented codebase incorporates the following engineering safeguards:
+* **Upload Size Quota:** Enforced 25 MB payload limit (`MAX_UPLOAD_SIZE_BYTES`) across all file upload endpoints.
+* **Input Validation & Sanitization:** Verification of image byte streams and MIME types, rejecting empty or corrupted files with clear HTTP status codes (`HTTP 400` / `HTTP 422`).
+* **Stream-Size Verification:** Guardrails against oversized multipart streams to protect server memory.
+* **Sanitized Error Messaging:** Standardized JSON error responses preventing stack trace leakage to client applications.
+* **Restricted Development CORS:** Origin access limited to designated development environments (`http://localhost:5173`, `http://localhost:3000`).
+* **UUID Session Keys:** Session and image identifiers generated with non-sequential UUIDs (`insp-<uuid>`).
+* **Conservative Incomplete Evidence Handling:** Prevents false-positive non-compliance findings by utilizing `NOT_VERIFIABLE` and `UNCLEAR` statuses.
+* **Report Integrity Hash:** The generated report includes a SHA-256 integrity hash that can be used to detect subsequent modification of the report data.
 
 ---
 
 ## 👥 Team CodeHexa
 
-Developed with pride for **Smart India Hackathon 2026** (Problem Statement: **SIH26034**).
-
-
+Developed for **Smart India Hackathon 2026**  
+**Problem Statement:** SIH26034 — AI Product Compliance Checker  
