@@ -137,27 +137,84 @@ class PaddleEngine(BaseOCREngine):
         )
 
 
+class EmptyOCREngine(BaseOCREngine):
+    """Fallback engine when no OCR backend is available. Never injects fake/stale text."""
+
+    @property
+    def name(self) -> str:
+        return "Empty-OCR-Fallback"
+
+    @property
+    def is_available(self) -> bool:
+        return True
+
+    def extract_text(self, image: Image.Image) -> OCRResult:
+        return OCRResult(text="", confidence=0.0, regions=[])
+
+
 def get_ocr_engine(engine_name: Optional[str] = None) -> BaseOCREngine:
     """
     Factory function returning a configured OCR engine.
-    Supports 'MOCK', 'TESSERACT', 'PADDLE', or 'AUTO'.
-    Falls back gracefully to MockOCREngine if external libraries are not installed.
+    Supports 'AUTO', 'APPLE_VISION', 'TESSERACT', 'PADDLE', or 'MOCK'.
+    In AUTO mode, prioritizes real OCR backends (Apple Vision on macOS, Tesseract, Paddle)
+    and never silently substitutes demo/mock data.
     """
     selected = (engine_name or settings.OCR_ENGINE).upper()
+
+    if selected == "APPLE_VISION":
+        try:
+            from backend.ocr.apple_vision import AppleVisionEngine
+            apple = AppleVisionEngine()
+            if apple.is_available:
+                return apple
+        except Exception as exc:
+            logger.warning(f"Apple Vision OCR requested but failed to load: {exc}")
+        return EmptyOCREngine()
 
     if selected == "TESSERACT":
         tess = TesseractEngine()
         if tess.is_available:
             return tess
-        logger.warning("Tesseract requested but not available. Falling back to MockOCREngine.")
-        return MockOCREngine()
+        logger.warning("Tesseract requested but not available. Falling back to EmptyOCREngine.")
+        return EmptyOCREngine()
 
     if selected == "PADDLE":
         paddle = PaddleEngine()
         if paddle.is_available:
             return paddle
-        logger.warning("PaddleOCR requested but not available. Falling back to MockOCREngine.")
+        logger.warning("PaddleOCR requested but not available. Falling back to EmptyOCREngine.")
+        return EmptyOCREngine()
+
+    if selected == "MOCK":
         return MockOCREngine()
 
-    # Default to MockOCREngine for testability and portability
+    # AUTO mode: Prioritize real OCR engines, NEVER silently inject mock data
+    if selected in ["AUTO", "DEFAULT", ""]:
+        # 1. Native macOS Vision (runs locally on Apple Silicon / macOS via Neural Engine)
+        try:
+            from backend.ocr.apple_vision import AppleVisionEngine
+            apple = AppleVisionEngine()
+            if apple.is_available:
+                return apple
+        except Exception as exc:
+            logger.debug(f"AppleVisionEngine check: {exc}")
+
+        # 2. Tesseract OCR
+        tess = TesseractEngine()
+        if tess.is_available:
+            return tess
+
+        # 3. Paddle OCR
+        paddle = PaddleEngine()
+        if paddle.is_available:
+            return paddle
+
+        # If no real OCR engine is installed, return EmptyOCREngine so missing declarations
+        # are safely marked as NOT_VERIFIABLE rather than substituted with Parle-G.
+        logger.warning("No real OCR engine available on this system. Falling back to EmptyOCREngine.")
+        return EmptyOCREngine()
+
+    # Unknown legacy engine names fallback to MockOCREngine for test compatibility
+    logger.warning(f"Unknown OCR engine '{selected}'. Falling back to MockOCREngine.")
     return MockOCREngine()
+

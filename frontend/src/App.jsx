@@ -20,7 +20,7 @@ export function App() {
   const [demoLoading, setDemoLoading] = useState(false);
   const [isSystemInfoOpen, setIsSystemInfoOpen] = useState(false);
 
-  const { isOnline } = useNetworkStatus();
+  const { isFullyConnected: isOnline } = useNetworkStatus();
   const { isInstallable, promptInstall } = usePwaInstall();
 
   const handleOpenInspection = (inspectionId) => {

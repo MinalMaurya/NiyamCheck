@@ -18,22 +18,27 @@ export function StatusBadge({ status, size = 'normal', showIcon = true }) {
 
     case 'NON_COMPLIANT':
     case 'FAIL':
+    case 'POTENTIAL_ISSUE':
+    case 'POTENTIAL_ISSUES':
       badgeClass = 'badge-non-compliant';
-      label = norm === 'FAIL' ? 'FAIL' : 'NON-COMPLIANT';
+      label = norm === 'POTENTIAL_ISSUE' ? 'POTENTIAL ISSUE' : norm === 'FAIL' ? 'FAIL' : 'NON-COMPLIANT';
       Icon = XCircle;
       break;
 
     case 'PARTIALLY_VERIFIABLE':
+    case 'NEEDS_REVIEW':
       badgeClass = 'badge-partially-verifiable';
-      label = 'PARTIALLY VERIFIABLE';
+      label = norm === 'NEEDS_REVIEW' ? 'NEEDS REVIEW' : 'PARTIALLY VERIFIABLE';
       Icon = AlertTriangle;
       break;
 
     case 'UNCLEAR':
+    case 'REVIEW':
       badgeClass = 'badge-unclear';
-      label = 'UNCLEAR';
+      label = norm === 'REVIEW' ? 'REVIEW' : 'UNCLEAR';
       Icon = HelpCircle;
       break;
+
 
     case 'NOT_VERIFIABLE':
       badgeClass = 'badge-not-verifiable';

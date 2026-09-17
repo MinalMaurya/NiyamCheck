@@ -8,8 +8,8 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     DESCRIPTION: str = "NiyamCheck API — Legal Metrology Compliance Inspection Platform"
 
-    # OCR Configuration: "MOCK", "TESSERACT", "PADDLE", "EASYOCR", "AUTO"
-    OCR_ENGINE: str = "MOCK"
+    # OCR Configuration: "AUTO", "APPLE_VISION", "TESSERACT", "PADDLE", "MOCK"
+    OCR_ENGINE: str = "AUTO"
 
     # Image Quality Thresholds
     IQA_BLUR_THRESHOLD_GOOD: float = 100.0

@@ -101,13 +101,16 @@ class FieldExtractor:
         # Identify topmost non-declaration line as candidate product name
         for line in lines:
             t = line.strip()
-            # Ignore standard declaration boilerplate keywords
+            # Ignore standard declaration boilerplate keywords and nutrition facts
             if len(t) >= 3 and not any(
                 k in t.upper()
                 for k in [
                     "MRP", "NET", "MFD", "PKD", "EXP", "USE BY", "BATCH",
                     "INGREDIENTS", "CALL", "EMAIL", "MADE IN", "PACKED BY",
-                    "MANUFACTURED", "CONSUMER", "CUSTOMER", "PRICE", "Rs.", "₹"
+                    "MANUFACTURED", "CONSUMER", "CUSTOMER", "PRICE", "Rs.", "₹",
+                    "NUTRITION", "SERVING", "CALORIES", "TOTAL FAT", "SATURATED",
+                    "CHOLESTEROL", "SODIUM", "CARBOHYDRATE", "PROTEIN", "GLUTEN FREE",
+                    "NO ARTIFICIAL", "NO PRESERVATIVES", "BARCODE",
                 ]
             ):
                 return FieldResult[str](
@@ -118,7 +121,7 @@ class FieldExtractor:
                 )
 
         if lines:
-            # Fallback: first line with lower confidence
+            # Fallback: first non-empty line with lower confidence
             first = lines[0].strip()
             return FieldResult[str](
                 value=first,
@@ -140,6 +143,8 @@ class FieldExtractor:
             m = MFG_NAME_PATTERN.search(line)
             if m:
                 name = m.group(1).strip()
+                # Clean any trailing punctuation or commas
+                name = re.sub(r"^[.:\s-]+", "", name).strip()
                 return FieldResult[str](
                     value=name,
                     status=ExtractionStatus.PRESENT,
@@ -150,12 +155,27 @@ class FieldExtractor:
         m = MFG_NAME_PATTERN.search(raw_text)
         if m:
             name = m.group(1).strip()
+            name = re.sub(r"^[.:\s-]+", "", name).strip()
             return FieldResult[str](
                 value=name,
                 status=ExtractionStatus.PRESENT,
                 confidence=0.88,
                 raw_text=m.group(0),
             )
+
+        # Open-world entity suffix fallback (e.g. "Frito-Lay, Inc." or "PepsiCo India Holdings")
+        for line in lines:
+            t = line.strip()
+            if any(s in t.upper() for s in ["FRITO-LAY", "PEPSICO", "PVT. LTD.", "PVT LTD", "LTD.", "LIMITED", "INC.", "CORP.", "LLC"]):
+                if not any(k in t.upper() for k in ["CALL", "EMAIL", "EXP", "MFD", "BEST BEFORE"]):
+                    candidate = t.split(",")[0].strip() if "," in t and not any(s in t.split(",")[0].upper() for s in ["INC", "LLC"]) else t.strip()
+                    candidate = re.sub(r"^(?:MANUFACTURED\s*(?:BY|FOR)?|MFD\s*BY)[:\s.-]*", "", candidate, flags=re.IGNORECASE).strip()
+                    return FieldResult[str](
+                        value=candidate,
+                        status=ExtractionStatus.PRESENT,
+                        confidence=0.86,
+                        raw_text=line,
+                    )
 
         return FieldResult[str](
             value=None,

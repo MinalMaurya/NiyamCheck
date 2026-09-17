@@ -6,10 +6,12 @@ root_dir = str(Path(__file__).resolve().parent.parent)
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
+from backend.exceptions import InspectionStageError
 from backend.api.v1.analyze import router as analyze_router
 from backend.api.v1.inspections import router as inspections_router
 from backend.api.v1.legal import router as legal_router
@@ -37,6 +39,67 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+import logging
+import traceback
+
+logger = logging.getLogger("niyamcheck")
+
+
+@app.exception_handler(InspectionStageError)
+async def inspection_stage_error_handler(request: Request, exc: InspectionStageError):
+    """Formats pipeline stage errors into consistent structured diagnostics and logs to server console."""
+    logger.error(
+        f"[InspectionStageError] Stage: {exc.stage} | Error Code: {exc.error_code} | "
+        f"Message: {exc.message} | Details: {exc.details}"
+    )
+    if exc.traceback_str:
+        logger.error(f"Traceback:\n{exc.traceback_str}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=exc.to_dict(),
+    )
+
+
+@app.exception_handler(404)
+async def custom_api_404_handler(request: Request, exc):
+    """Provides clear diagnostic errors when an API route is not found."""
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(
+            status_code=404,
+            content={
+                "success": False,
+                "stage": "upload",
+                "error_code": "ENDPOINT_NOT_FOUND",
+                "message": f"API endpoint '{request.url.path}' was not found on this server.",
+                "details": f"Method {request.method} on '{request.url.path}' is not a registered route. Verify the backend route configuration.",
+            },
+        )
+    return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """
+    Catches any unexpected server exceptions during inspection processing.
+    Logs the full traceback to development terminal while returning clean structured JSON to client.
+    """
+    tb = traceback.format_exc()
+    logger.error(f"[UnhandledException] Exception: {type(exc).__name__}: {str(exc)}\n{tb}")
+
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "stage": "compliance_check",
+            "error_code": "INTERNAL_SERVER_ERROR",
+            "message": f"An unexpected error occurred: {str(exc) or type(exc).__name__}",
+            "details": f"{type(exc).__name__}: {str(exc)}",
+            "detail": f"{type(exc).__name__}: {str(exc)}",
+        },
+    )
+
+
 # Mount Routers
 app.include_router(analyze_router, prefix=f"{settings.API_V1_STR}/analyze", tags=["Analysis"])
 app.include_router(inspections_router, prefix=f"{settings.API_V1_STR}/inspections", tags=["Inspections"])
@@ -56,6 +119,7 @@ async def root():
             "legal": f"{settings.API_V1_STR}/legal",
         },
         "docs_url": "/docs",
+        "docs": "/docs",
     }
 
 

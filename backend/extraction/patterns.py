@@ -3,15 +3,15 @@ import re
 # MRP & Price patterns
 MRP_PATTERN = re.compile(
     r"(?:M\.?R\.?P\.?|MAX(?:IMUM)?\s*RETAIL\s*PRICE|PRICE|MRP)"
-    r"[^\d₹Rs\n]*"
-    r"(?:₹|Rs\.?|INR)?\s*"
+    r"[^\d₹Rs\$\n]*"
+    r"(?:₹|Rs\.?|R\$|\$|INR)?\s*"
     r"(\d+(?:\.\d{1,2})?)"
     r"(?:\s*/-|\s*INR)?",
     re.IGNORECASE,
 )
 
 STANDALONE_PRICE_PATTERN = re.compile(
-    r"(?:₹|Rs\.?)\s*(\d+(?:\.\d{1,2})?)(?:\s*/-)?",
+    r"(?:₹|Rs\.?|R\$|\$)\s*(\d+(?:\.\d{1,2})?)(?:\s*/-)?",
     re.IGNORECASE,
 )
 

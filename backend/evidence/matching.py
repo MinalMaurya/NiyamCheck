@@ -67,13 +67,21 @@ def find_matching_region(
                     best_region = region
 
     if best_region is not None and best_region.box and len(best_region.box) == 4:
-        ymin, xmin, ymax, xmax = best_region.box
-        bbox = BoundingBox(
-            ymin=round(float(ymin), 4),
-            xmin=round(float(xmin), 4),
-            ymax=round(float(ymax), 4),
-            xmax=round(float(xmax), 4),
-        )
-        return best_region, bbox
+        try:
+            y1, x1, y2, x2 = [float(c) for c in best_region.box]
+            ymin = max(0.0, min(1.0, min(y1, y2)))
+            ymax = max(0.0, min(1.0, max(y1, y2)))
+            xmin = max(0.0, min(1.0, min(x1, x2)))
+            xmax = max(0.0, min(1.0, max(x1, x2)))
+            bbox = BoundingBox(
+                ymin=round(ymin, 4),
+                xmin=round(xmin, 4),
+                ymax=round(ymax, 4),
+                xmax=round(xmax, 4),
+            )
+            return best_region, bbox
+        except Exception:
+            return best_region, None
 
     return None
+

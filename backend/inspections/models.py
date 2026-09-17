@@ -43,9 +43,16 @@ class InspectionSession(BaseModel):
     """
     inspection_id: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    product_category: Optional[str] = Field("Packaged Food", description="Detected or assigned packaged product category")
     images: List[InspectionImage] = Field(default_factory=list)
     combined_fields: ExtractedFields
     compliance: ComplianceResult
     evidence: List[EvidenceItem] = Field(default_factory=list)
     status: ComplianceStatus
     summary: str
+    requirements_checked: int = Field(0, description="Total statutory requirements checked")
+    passed: int = Field(0, description="Requirements passed")
+    review: int = Field(0, description="Requirements needing review / ambiguous / single-panel unobserved")
+    potential_issues: int = Field(0, description="Potential issues / statutory non-compliances")
+    findings: List[Any] = Field(default_factory=list, description="Detailed findings list for UI and reporting")
+

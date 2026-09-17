@@ -33,13 +33,15 @@ describe('NiyamCheck Frontend Unit & Integration Tests', () => {
     assert.equal(validPanels.length, 7);
   });
 
-  // Test 3: API client handles successful responses
-  test('API error class properly formats error and status', async () => {
+  // Test 3: API error class properly formats error, status, stage, and errorCode
+  test('API error class properly formats error, status, and structured diagnostics', async () => {
     const { ApiError } = await import('../src/api/client.js');
-    const err = new ApiError('Resource not found', 404, { hint: 'Check ID' });
+    const err = new ApiError('Resource not found', 404, { hint: 'Check ID' }, 'ocr', 'OCR_FAILED');
     assert.equal(err.message, 'Resource not found');
     assert.equal(err.status, 404);
     assert.deepEqual(err.details, { hint: 'Check ID' });
+    assert.equal(err.stage, 'ocr');
+    assert.equal(err.errorCode, 'OCR_FAILED');
   });
 
   // Test 4: API client error normalization

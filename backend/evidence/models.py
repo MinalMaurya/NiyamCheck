@@ -1,5 +1,5 @@
 from typing import Optional, List, Dict, Any, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class BoundingBox(BaseModel):
@@ -11,6 +11,16 @@ class BoundingBox(BaseModel):
     xmin: float = Field(..., ge=0.0, le=1.0, description="Left edge (0.0 - 1.0)")
     ymax: float = Field(..., ge=0.0, le=1.0, description="Bottom edge (0.0 - 1.0)")
     xmax: float = Field(..., ge=0.0, le=1.0, description="Right edge (0.0 - 1.0)")
+
+    @field_validator("ymin", "xmin", "ymax", "xmax", mode="before")
+    @classmethod
+    def clamp_coordinate(cls, v: Any) -> float:
+        try:
+            val = float(v)
+            return round(max(0.0, min(1.0, val)), 4)
+        except (ValueError, TypeError):
+            return 0.0
+
 
     @property
     def x(self) -> float:

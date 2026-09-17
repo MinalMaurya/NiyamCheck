@@ -242,9 +242,14 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
       setIsSubmitting(false);
       setSubmitPhase(0);
 
-      // Preserve images and notify user with retry and draft options
+      const stageInfo = err.stage ? `[Stage: ${err.stage.toUpperCase()}] ` : '';
+      const codeInfo = err.errorCode ? `(${err.errorCode}) ` : '';
+      const detailInfo = err.details && err.details !== err.message ? ` — ${err.details}` : '';
+      const mainMsg = err.message || 'Network error';
+
+      // Preserve images and notify user with structured retry and draft options
       setError(
-        `Inspection submission failed: ${err.message || 'Network error'}. Your captured images have been preserved. You can retry or save as a draft.`
+        `Inspection submission failed: ${stageInfo}${codeInfo}${mainMsg}${detailInfo}. Your captured images have been preserved. You can retry or save as a draft.`
       );
     }
   };

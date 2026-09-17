@@ -6,7 +6,7 @@
 [![SIH: 2026 Prototype](https://img.shields.io/badge/SIH%202026-Prototype%20Demo%20Ready-blue.svg)](#current-milestone-status)
 [![Backend: Python 3.10+](https://img.shields.io/badge/Backend-Python%203.10%2B%20%7C%20FastAPI-blue.svg)](#technology-stack)
 [![Frontend: React 18 + Vite](https://img.shields.io/badge/Frontend-React%2018%20%7C%20Vite%205-purple.svg)](#technology-stack)
-[![Tests: Passing](https://img.shields.io/badge/Tests-139%20Backend%20%7C%2023%20Frontend%20Passing-brightgreen.svg)](#testing)
+[![Tests: Passing](https://img.shields.io/badge/Tests-146%20Backend%20%7C%2023%20Frontend%20Passing-brightgreen.svg)](#testing)
 
 NiyamCheck is a prototype inspection platform designed to assist in verifying mandatory packaging declarations under Indian Legal Metrology regulations. The system analyzes visible declarations from submitted package images, evaluates configured Legal Metrology rules deterministically, maps findings directly to bounding-box image evidence, retrieves source-linked legal material from an authoritative statutory knowledge base, and generates structured inspection reports in JSON and PDF formats.
 
@@ -329,7 +329,7 @@ The backend test suite verifies image quality assessment, OCR abstraction, open-
 ```bash
 .venv/bin/python -m unittest discover tests
 ```
-* **Result:** **139 tests passed, 0 failed** in ~0.66s.
+* **Result:** **146 tests passed, 0 failed** in ~0.91s.
 
 ### Frontend Test Suite
 The frontend test suite validates dashboard calculation, API error formatting, coordinate clamping, conservative status handling, PWA service worker contracts, image validation, and IndexedDB draft persistence:

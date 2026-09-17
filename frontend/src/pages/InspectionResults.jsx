@@ -166,13 +166,13 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
           backgroundColor:
             session.status === 'COMPLIANT'
               ? 'rgba(6, 78, 59, 0.2)'
-              : session.status === 'NON_COMPLIANT'
+              : session.status === 'NON_COMPLIANT' || session.status === 'FAIL'
               ? 'rgba(127, 29, 29, 0.2)'
               : 'rgba(120, 53, 15, 0.2)',
           borderLeft: `4px solid ${
             session.status === 'COMPLIANT'
               ? 'var(--status-pass-border)'
-              : session.status === 'NON_COMPLIANT'
+              : session.status === 'NON_COMPLIANT' || session.status === 'FAIL'
               ? 'var(--status-fail-border)'
               : 'var(--status-partial-border)'
           }`,
@@ -180,28 +180,44 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <div style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 600 }}>
-              Overall Verification Rationale
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '0.35rem' }}>
+              <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Product Category:
+              </span>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#93C5FD', backgroundColor: 'var(--bg-surface-elevated)', padding: '0.15rem 0.6rem', borderRadius: '4px' }}>
+                {session.product_category || 'Packaged Food'}
+              </span>
+              {images.length === 1 && (
+                <span style={{ fontSize: '0.75rem', color: '#FBBF24', backgroundColor: 'rgba(245, 158, 11, 0.15)', padding: '0.15rem 0.6rem', borderRadius: '4px', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                  Single Panel ({images[0].panel})
+                </span>
+              )}
             </div>
             <p style={{ fontSize: '1rem', color: 'var(--text-primary)', marginTop: '0.35rem', fontWeight: 500 }}>
               {session.summary || comp.summary || 'Deterministic Legal Metrology evaluation complete.'}
             </p>
+            {images.length === 1 && (
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '0.4rem', fontStyle: 'italic' }}>
+                ℹ️ Only one package panel was submitted. Missing declarations are marked for review rather than violations because information may exist on other panels.
+              </p>
+            )}
           </div>
 
           {/* Quick Stat Pills */}
           <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem', borderRadius: '4px', backgroundColor: 'var(--status-pass-bg)', color: 'var(--status-pass-text)', border: '1px solid var(--status-pass-border)' }}>
-              <strong>{comp.rules_passed || 0}</strong> Passed
+              <strong>{session.passed || comp.rules_passed || 0}</strong> Passed
             </span>
             <span style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem', borderRadius: '4px', backgroundColor: 'var(--status-fail-bg)', color: 'var(--status-fail-text)', border: '1px solid var(--status-fail-border)' }}>
-              <strong>{comp.rules_failed || 0}</strong> Failed
+              <strong>{session.potential_issues || comp.rules_failed || 0}</strong> Potential Issues
             </span>
             <span style={{ fontSize: '0.8rem', padding: '0.3rem 0.65rem', borderRadius: '4px', backgroundColor: 'var(--status-partial-bg)', color: 'var(--status-partial-text)', border: '1px solid var(--status-partial-border)' }}>
-              <strong>{(comp.rules_unclear || 0) + (comp.rules_not_verifiable || 0)}</strong> Needs Review
+              <strong>{session.review || (comp.rules_unclear || 0) + (comp.rules_not_verifiable || 0)}</strong> Needs Review
             </span>
           </div>
         </div>
       </div>
+
 
       {/* Navigation Tabs */}
       <div className="tabs-nav">
@@ -315,6 +331,12 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                         </strong>
                       </div>
                       <div>
+                        <span style={{ color: 'var(--text-muted)' }}>Package Panel: </span>
+                        <span style={{ color: '#FBBF24', fontWeight: 600 }}>
+                          {ev.package_panel || (typeof ev.evidence === 'object' && ev.evidence?.panel) || 'UNKNOWN'}
+                        </span>
+                      </div>
+                      <div>
                         <span style={{ color: 'var(--text-muted)' }}>OCR Confidence: </span>
                         <span style={{ color: confidencePct > 75 ? '#34D399' : '#FBBF24', fontWeight: 600 }}>
                           {confidencePct}%
@@ -323,10 +345,29 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                     </div>
 
                     {/* Evaluation Rationale */}
-                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
                       <strong style={{ color: 'var(--text-muted)' }}>Rationale: </strong>
                       <span>{ev.reason}</span>
                     </div>
+
+                    {/* Why was this flagged & What can I do */}
+                    {(ev.why_flagged || ev.what_can_i_do) && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.6rem', marginBottom: '0.75rem', fontSize: '0.8rem' }}>
+                        {ev.why_flagged && (
+                          <div style={{ padding: '0.6rem 0.8rem', backgroundColor: 'rgba(59, 130, 246, 0.08)', borderRadius: '4px', borderLeft: '3px solid #3B82F6' }}>
+                            <strong style={{ color: '#93C5FD' }}>Why was this flagged? </strong>
+                            <p style={{ margin: '0.2rem 0 0 0', color: 'var(--text-secondary)' }}>{ev.why_flagged}</p>
+                          </div>
+                        )}
+                        {ev.what_can_i_do && (
+                          <div style={{ padding: '0.6rem 0.8rem', backgroundColor: 'rgba(16, 185, 129, 0.08)', borderRadius: '4px', borderLeft: '3px solid #10B981' }}>
+                            <strong style={{ color: '#6EE7B7' }}>What can I do? </strong>
+                            <p style={{ margin: '0.2rem 0 0 0', color: 'var(--text-secondary)' }}>{ev.what_can_i_do}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
 
                     {/* Legal Basis Section */}
                     {ev.legal_basis && ev.legal_basis.length > 0 && (

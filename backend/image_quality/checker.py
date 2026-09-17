@@ -1,7 +1,7 @@
 import io
 from typing import Tuple, List, Optional
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 
 from backend.config import settings
 from backend.schemas.analysis import (
@@ -40,14 +40,26 @@ class ImageQualityChecker:
         Assesses image quality across resolution, blur, brightness, and contrast.
         Returns GOOD, ACCEPTABLE, or POOR with score and actionable issues.
         """
-        # Ensure RGB mode
-        if pil_image.mode != "RGB":
+        # 1. Normalize EXIF orientation if present (common in smartphone package photos)
+        try:
+            pil_image = ImageOps.exif_transpose(pil_image) or pil_image
+        except Exception:
+            pass
+
+        # 2. Ensure RGB mode with safe alpha compositing (prevents transparent screenshots from turning black)
+        if pil_image.mode in ("RGBA", "LA") or (pil_image.mode == "P" and "transparency" in pil_image.info):
+            bg = Image.new("RGB", pil_image.size, (255, 255, 255))
+            rgba = pil_image.convert("RGBA")
+            bg.paste(rgba, mask=rgba.split()[3])
+            rgb_img = bg
+        elif pil_image.mode != "RGB":
             rgb_img = pil_image.convert("RGB")
         else:
             rgb_img = pil_image
 
         width, height = rgb_img.size
         img_array = np.array(rgb_img)
+
 
         # Grayscale luma (ITU-R 601-2)
         gray = 0.299 * img_array[:, :, 0] + 0.587 * img_array[:, :, 1] + 0.114 * img_array[:, :, 2]

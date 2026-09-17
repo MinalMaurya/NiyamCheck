@@ -83,7 +83,14 @@ class LegalKnowledgeService:
             # Update evaluation reason with legal citation context if available
             if bases:
                 primary = bases[0]
+                ev.legal_source = f"{primary.source}, {primary.rule_number} ({primary.section})"
                 ev.reason = f"{ev.reason} [Statutory basis: {primary.source}, {primary.rule_number} ({primary.section})]"
+            else:
+                ev.legal_source = "No applicable rule was found in the configured legal knowledge base."
+
+            ev.explanation = explanation.explanation_text if hasattr(explanation, "explanation_text") else str(explanation)
+
+
 
         return compliance_result
 

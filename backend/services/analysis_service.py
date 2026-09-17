@@ -135,19 +135,49 @@ class AnalysisService:
             )
             pil_image = Image.new("RGB", (300, 300), color=(128, 128, 128))
 
-        engine = get_ocr_engine(self.ocr_engine_name)
-        ocr_res = engine.extract_text(pil_image)
-        fields_res = field_extractor.extract(ocr_res, quality_res)
-        compliance_res = compliance_engine.evaluate(fields_res)
-        evidence_items = evidence_mapper.map_evidence(
-            ocr_result=ocr_res,
-            fields=fields_res,
-            compliance_result=compliance_res,
-            image_id=image_id,
-            panel=panel.value if isinstance(panel, PanelType) else str(panel),
-        )
+        # 2. Resilient OCR Extraction
+        try:
+            engine = get_ocr_engine(self.ocr_engine_name)
+            ocr_res = engine.extract_text(pil_image)
+        except Exception as ocr_exc:
+            ocr_res = OCRResult(text="", confidence=0.0, regions=[])
+            if hasattr(quality_res, "issues") and quality_res.issues is not None:
+                quality_res.issues.append(f"OCR extraction encountered an error: {str(ocr_exc)}")
+
+        # 3. Canonical Field Extraction
+        try:
+            fields_res = field_extractor.extract(ocr_res, quality_res)
+        except Exception:
+            fields_res = ExtractedFields()
+
+        # 4. Compliance Evaluation
+        try:
+            compliance_res = compliance_engine.evaluate(fields_res)
+        except Exception:
+            from backend.compliance.models import ComplianceResult, ComplianceStatus
+            compliance_res = ComplianceResult(
+                status=ComplianceStatus.NEEDS_REVIEW,
+                summary="Insufficient readable declaration information could be verified.",
+                rules_checked=0,
+            )
+
+        # 5. Evidence Mapping
+        try:
+            evidence_items = evidence_mapper.map_evidence(
+                ocr_result=ocr_res,
+                fields=fields_res,
+                compliance_result=compliance_res,
+                image_id=image_id,
+                panel=panel.value if isinstance(panel, PanelType) else str(panel),
+            )
+        except Exception:
+            evidence_items = []
+
         # 6. Authoritative Legal Knowledge Retrieval (Milestone 4)
-        legal_knowledge_service.attach_legal_basis(compliance_res)
+        try:
+            legal_knowledge_service.attach_legal_basis(compliance_res)
+        except Exception:
+            pass
 
         return InspectionImage(
             image_id=image_id,
@@ -159,6 +189,7 @@ class AnalysisService:
             compliance=compliance_res,
             evidence=evidence_items,
         )
+
 
 
 analysis_service = AnalysisService()

@@ -1,6 +1,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status, Response
 
+from backend.exceptions import InspectionStageError
 from backend.inspections.models import InspectionSession, PanelType, InspectionImage
 from backend.inspections.store import inspection_store
 from backend.inspections.aggregator import session_aggregator
@@ -44,9 +45,11 @@ async def create_inspection(
     ),
 ):
     if not files:
-        raise HTTPException(
+        raise InspectionStageError(
+            stage="upload",
+            error_code="NO_FILES_PROVIDED",
+            message="At least one packaging image file must be provided.",
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one packaging image file must be provided.",
         )
 
     # Normalize panels if sent as comma-separated or single string
@@ -61,48 +64,102 @@ async def create_inspection(
     analyzed_images: List[InspectionImage] = []
     file_contents_list: List[tuple] = []
     for idx, file in enumerate(files):
-        contents = await file.read()
-        if not contents:
-            raise HTTPException(
+        try:
+            contents = await file.read()
+        except Exception as read_exc:
+            raise InspectionStageError(
+                stage="upload",
+                error_code="READ_ERROR",
+                message=f"Failed to read uploaded file '{file.filename or idx}'.",
+                details=str(read_exc),
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Uploaded file '{file.filename or idx}' is empty.",
+            )
+
+        if not contents:
+            raise InspectionStageError(
+                stage="upload",
+                error_code="EMPTY_FILE",
+                message=f"Uploaded file '{file.filename or idx}' is empty.",
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
         if len(contents) > settings.MAX_UPLOAD_SIZE_BYTES:
-            raise HTTPException(
+            raise InspectionStageError(
+                stage="upload",
+                error_code="PAYLOAD_TOO_LARGE",
+                message=f"Uploaded file '{file.filename or idx}' exceeds maximum size limit of {settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)}MB.",
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Uploaded file '{file.filename or idx}' exceeds maximum size limit of {settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)}MB.",
             )
 
         raw_panel = panel_list[idx] if idx < len(panel_list) else None
         panel_type = _parse_panel(raw_panel)
         image_id = f"img-{idx+1:03d}"
 
-        inspection_image = analysis_service.analyze_inspection_image(
-            image_bytes=contents,
-            image_id=image_id,
-            filename=file.filename,
-            panel=panel_type,
-        )
+        try:
+            inspection_image = analysis_service.analyze_inspection_image(
+                image_bytes=contents,
+                image_id=image_id,
+                filename=file.filename,
+                panel=panel_type,
+            )
+        except InspectionStageError:
+            raise
+        except Exception as proc_exc:
+            import traceback
+            tb = traceback.format_exc()
+            raise InspectionStageError(
+                stage="ocr",
+                error_code="OCR_PROCESSING_FAILED",
+                message=f"Failed to extract text or evaluate packaging panel '{file.filename or image_id}'.",
+                details=str(proc_exc),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                traceback_str=tb,
+            )
+
         analyzed_images.append(inspection_image)
         file_contents_list.append((image_id, contents, file.content_type or "image/jpeg"))
 
     # Aggregate session findings across all uploaded packaging panels
-    session = session_aggregator.aggregate_session(
-        images=analyzed_images,
-        inspection_id=inspection_id,
-    )
+    try:
+        session = session_aggregator.aggregate_session(
+            images=analyzed_images,
+            inspection_id=inspection_id,
+        )
+    except Exception as agg_exc:
+        import traceback
+        tb = traceback.format_exc()
+        raise InspectionStageError(
+            stage="compliance_check",
+            error_code="AGGREGATION_FAILED",
+            message="Failed to aggregate multi-panel declarations and compliance findings.",
+            details=str(agg_exc),
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            traceback_str=tb,
+        )
 
     # Cache image binaries and populate image_url for direct client display
-    for image_id, raw_bytes, mime_type in file_contents_list:
-        inspection_store.save_image(session.inspection_id, image_id, raw_bytes, mime_type)
+    try:
+        for image_id, raw_bytes, mime_type in file_contents_list:
+            inspection_store.save_image(session.inspection_id, image_id, raw_bytes, mime_type)
 
-    for img in session.images:
-        img.image_url = f"/api/v1/inspections/{session.inspection_id}/images/{img.image_id}"
+        for img in session.images:
+            img.image_url = f"/api/v1/inspections/{session.inspection_id}/images/{img.image_id}"
 
-    # Persist session to store
-    inspection_store.save(session)
+        # Persist session to store
+        inspection_store.save(session)
+    except Exception as store_exc:
+        import traceback
+        tb = traceback.format_exc()
+        raise InspectionStageError(
+            stage="report_generation",
+            error_code="STORAGE_PERSISTENCE_FAILED",
+            message="Failed to persist inspection session to repository store.",
+            details=str(store_exc),
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            traceback_str=tb,
+        )
 
     return session
+
 
 
 @router.get(
@@ -124,9 +181,11 @@ async def list_inspections():
 async def get_inspection(inspection_id: str):
     session = inspection_store.get(inspection_id)
     if not session:
-        raise HTTPException(
+        raise InspectionStageError(
+            stage="upload",
+            error_code="SESSION_NOT_FOUND",
+            message=f"Inspection session '{inspection_id}' not found.",
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Inspection session '{inspection_id}' not found.",
         )
     return session
 
@@ -136,15 +195,29 @@ async def get_inspection(inspection_id: str):
     summary="Download Inspection Report (PDF)",
     description="Generates and streams a structured Legal Metrology inspection report in PDF format.",
 )
+@router.get("/{inspection_id}/report/pdf", include_in_schema=False)
+@router.get("/{inspection_id}/report.pdf", include_in_schema=False)
 async def download_inspection_report_pdf(inspection_id: str):
     session = inspection_store.get(inspection_id)
     if not session:
-        raise HTTPException(
+        raise InspectionStageError(
+            stage="report_generation",
+            error_code="SESSION_NOT_FOUND",
+            message=f"Inspection session '{inspection_id}' not found.",
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Inspection session '{inspection_id}' not found.",
         )
 
-    pdf_bytes = report_service.generate_pdf(session)
+    try:
+        pdf_bytes = report_service.generate_pdf(session)
+    except Exception as pdf_exc:
+        raise InspectionStageError(
+            stage="report_generation",
+            error_code="PDF_GENERATION_FAILED",
+            message="Failed to generate PDF inspection report.",
+            details=str(pdf_exc),
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
@@ -161,15 +234,27 @@ async def download_inspection_report_pdf(inspection_id: str):
     summary="Get Inspection Report (JSON)",
     description="Returns the structured JSON inspection report with findings, evidence index, and audit hash.",
 )
+@router.get("/{inspection_id}/report/json", response_model=InspectionReport, include_in_schema=False)
 async def get_inspection_report_json(inspection_id: str):
     session = inspection_store.get(inspection_id)
     if not session:
-        raise HTTPException(
+        raise InspectionStageError(
+            stage="report_generation",
+            error_code="SESSION_NOT_FOUND",
+            message=f"Inspection session '{inspection_id}' not found.",
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Inspection session '{inspection_id}' not found.",
         )
 
-    return report_service.build_report(session)
+    try:
+        return report_service.build_report(session)
+    except Exception as rep_exc:
+        raise InspectionStageError(
+            stage="report_generation",
+            error_code="REPORT_BUILD_FAILED",
+            message="Failed to build JSON inspection report.",
+            details=str(rep_exc),
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 @router.get(
@@ -180,9 +265,11 @@ async def get_inspection_report_json(inspection_id: str):
 async def get_inspection_image(inspection_id: str, image_id: str):
     image_data = inspection_store.get_image(inspection_id, image_id)
     if not image_data:
-        raise HTTPException(
+        raise InspectionStageError(
+            stage="evidence_mapping",
+            error_code="IMAGE_NOT_FOUND",
+            message=f"Image '{image_id}' for inspection session '{inspection_id}' not found.",
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Image '{image_id}' for inspection session '{inspection_id}' not found.",
         )
     content, media_type = image_data
     return Response(content=content, media_type=media_type)

@@ -6,11 +6,13 @@
 const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) || '';
 
 class ApiError extends Error {
-  constructor(message, status = null, details = null) {
+  constructor(message, status = null, details = null, stage = null, errorCode = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.details = details;
+    this.stage = stage;
+    this.errorCode = errorCode;
   }
 }
 
@@ -35,18 +37,37 @@ async function request(endpoint, options = {}) {
 
     if (!response.ok) {
       let errorDetail = `Request failed with status ${response.status}`;
+      let stage = null;
+      let errorCode = null;
+      let details = null;
+
       try {
-        const errorData = await response.json();
-        if (errorData && errorData.detail) {
-          errorDetail = typeof errorData.detail === 'string' 
-            ? errorData.detail 
-            : JSON.stringify(errorData.detail);
+        const text = await response.text();
+        try {
+          const errorData = JSON.parse(text);
+          if (errorData) {
+            if (errorData.message) {
+              errorDetail = errorData.message;
+            } else if (errorData.detail) {
+              errorDetail = typeof errorData.detail === 'string'
+                ? errorData.detail
+                : JSON.stringify(errorData.detail);
+            }
+            stage = errorData.stage || null;
+            errorCode = errorData.error_code || null;
+            details = errorData.details || null;
+          }
+        } catch {
+          if (text && text.trim()) {
+            errorDetail = text.trim();
+          }
         }
       } catch {
-        // Response was not JSON
+        // Response stream could not be read
       }
-      throw new ApiError(errorDetail, response.status);
+      throw new ApiError(errorDetail, response.status, details, stage, errorCode);
     }
+
 
     // Check for binary/attachment downloads
     const contentType = response.headers.get('content-type') || '';
@@ -65,7 +86,7 @@ async function request(endpoint, options = {}) {
     }
     // Network or connection errors
     throw new ApiError(
-      `Unable to connect to NiyamCheck backend. Please ensure FastAPI server is running on http://localhost:8000. (${err.message})`,
+      `Unable to connect to NiyamCheck backend. Please ensure FastAPI server is running on http://127.0.0.1:8000. (${err.message})`,
       0
     );
   }
@@ -75,7 +96,7 @@ export const api = {
   get: (endpoint, options) => request(endpoint, { ...options, method: 'GET' }),
   post: (endpoint, body, options) => request(endpoint, { ...options, method: 'POST', body: JSON.stringify(body) }),
   postForm: (endpoint, formData, options) => request(endpoint, { ...options, method: 'POST', body: formData }),
-  getBaseUrl: () => API_BASE || 'http://localhost:8000',
+  getBaseUrl: () => API_BASE || 'http://127.0.0.1:8000',
 };
 
 export { ApiError };
