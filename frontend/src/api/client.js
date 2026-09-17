@@ -96,6 +96,7 @@ export const api = {
   get: (endpoint, options) => request(endpoint, { ...options, method: 'GET' }),
   post: (endpoint, body, options) => request(endpoint, { ...options, method: 'POST', body: JSON.stringify(body) }),
   postForm: (endpoint, formData, options) => request(endpoint, { ...options, method: 'POST', body: formData }),
+  delete: (endpoint, options) => request(endpoint, { ...options, method: 'DELETE' }),
   getBaseUrl: () => API_BASE || 'http://127.0.0.1:8000',
 };
 

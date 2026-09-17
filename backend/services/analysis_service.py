@@ -150,6 +150,14 @@ class AnalysisService:
         except Exception:
             fields_res = ExtractedFields()
 
+        # Tag each field with panel and image_id for multi-image traceability
+        panel_str = panel.value if isinstance(panel, PanelType) else str(panel)
+        for field_name in ("product_name", "manufacturer", "packer", "importer", "address", "net_quantity", "mrp", "date_information", "consumer_care", "country_of_origin"):
+            f = getattr(fields_res, field_name, None)
+            if f is not None:
+                f.source_panel = panel_str
+                f.source_image_id = image_id
+
         # 4. Compliance Evaluation
         try:
             compliance_res = compliance_engine.evaluate(fields_res)

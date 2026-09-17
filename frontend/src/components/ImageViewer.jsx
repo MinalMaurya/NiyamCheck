@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ZoomIn, ZoomOut, RotateCcw, Maximize2, Layers, Eye } from 'lucide-react';
 import { getInspectionImageUrl } from '../api/inspections';
 
@@ -11,6 +11,20 @@ export function ImageViewer({
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [showOverlays, setShowOverlays] = useState(true);
+
+  // Sync active image with selectedEvidence panel/image_id
+  useEffect(() => {
+    if (selectedEvidence && images.length > 0) {
+      const idx = images.findIndex(
+        (img) =>
+          img.image_id === selectedEvidence.image_id ||
+          (selectedEvidence.panel && img.panel === selectedEvidence.panel)
+      );
+      if (idx !== -1) {
+        setActiveImageIndex(idx);
+      }
+    }
+  }, [selectedEvidence, images]);
 
   if (!images || images.length === 0) {
     return (

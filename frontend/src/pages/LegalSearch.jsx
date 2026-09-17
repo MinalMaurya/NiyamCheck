@@ -130,16 +130,18 @@ export function LegalSearch() {
       {/* Search Results */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-          <RefreshCw size={32} className="spinning" style={{ margin: '0 auto 1rem', color: '#3B82F6' }} />
+          <RefreshCw size={32} className="spinning" style={{ margin: '0 auto 1rem', color: 'var(--primary-500)' }} />
           <p>Searching official statutory provisions...</p>
         </div>
       ) : searched && results.length === 0 ? (
-        <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-          <BookOpen size={40} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+        <div className="empty-state">
+          <div className="empty-state-icon">
+            <BookOpen size={28} />
+          </div>
+          <h3 className="empty-state-title">
             No Provisions Found
           </h3>
-          <p style={{ fontSize: '0.85rem' }}>
+          <p className="empty-state-desc">
             No authoritative legal provisions matched the query "{query}". Try searching with different keywords like "Rule 6", "quantity", or "mrp".
           </p>
         </div>
@@ -150,7 +152,7 @@ export function LegalSearch() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: '#93C5FD', backgroundColor: 'rgba(59, 130, 246, 0.2)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--primary-500)', backgroundColor: 'var(--status-pass-bg)', padding: '0.15rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
                       {item.rule_number} {item.section ? `(${item.section})` : ''}
                     </span>
                     <strong style={{ fontSize: '1rem', color: 'var(--text-primary)' }}>{item.title}</strong>
@@ -158,7 +160,7 @@ export function LegalSearch() {
                 </div>
 
                 {item.score !== undefined && (
-                  <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: '#34D399', backgroundColor: 'rgba(16, 185, 129, 0.15)', padding: '0.2rem 0.5rem', borderRadius: 'var(--radius-full)' }}>
+                  <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--status-pass-text)', backgroundColor: 'var(--status-pass-bg)', padding: '0.2rem 0.5rem', borderRadius: 'var(--radius-full)', border: '1px solid var(--status-pass-border)' }}>
                     Relevance: {Math.round(item.score * 100)}%
                   </span>
                 )}
@@ -176,7 +178,7 @@ export function LegalSearch() {
                   padding: '0.75rem 1rem',
                   backgroundColor: 'var(--bg-surface-elevated)',
                   borderRadius: 'var(--radius-sm)',
-                  borderLeft: '3px solid #3B82F6',
+                  borderLeft: '3px solid var(--primary-500)',
                   fontStyle: 'italic',
                   fontSize: '0.85rem',
                   color: 'var(--text-secondary)',

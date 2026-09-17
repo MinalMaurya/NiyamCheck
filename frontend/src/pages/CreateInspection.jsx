@@ -453,7 +453,7 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
       {isSubmitting ? (
         <div className="card" style={{ maxWidth: '650px', margin: '2rem auto', padding: '2.5rem' }}>
           <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-            <RefreshCw size={42} className="spinning" style={{ margin: '0 auto 1rem', color: '#3B82F6' }} />
+            <RefreshCw size={42} className="spinning" style={{ margin: '0 auto 1rem', color: 'var(--primary-500)' }} />
             <h2 style={{ fontSize: '1.35rem', fontWeight: 700 }}>
               Analyzing Product Packaging
             </h2>
@@ -513,22 +513,23 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
           <div
             className="card"
             style={{
-              padding: '1.75rem',
+              padding: '2.5rem 1.75rem',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               textAlign: 'center',
-              backgroundColor: 'rgba(17, 24, 39, 0.4)',
+              backgroundColor: 'var(--bg-surface-elevated)',
               border: '2px dashed var(--border-default)',
+              transition: 'border-color 0.2s ease',
             }}
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
           >
-            <Camera size={44} style={{ color: '#3B82F6', marginBottom: '0.75rem', opacity: 0.9 }} />
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.35rem' }}>
+            <Camera size={44} style={{ color: 'var(--primary-500)', marginBottom: '0.75rem', opacity: 0.95 }} />
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.35rem' }}>
               Add Packaging Images
             </h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', maxWidth: '480px', marginBottom: '1.25rem' }}>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', maxWidth: '480px', marginBottom: '1.5rem' }}>
               Take photos directly with your phone's camera in the field or choose high-resolution packaging scans from your gallery.
             </p>
 

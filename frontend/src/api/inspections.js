@@ -63,3 +63,19 @@ export function getInspectionImageUrl(inspectionId, imageId) {
   const base = api.getBaseUrl();
   return `${base}/api/v1/inspections/${encodeURIComponent(inspectionId)}/images/${encodeURIComponent(imageId)}`;
 }
+
+export async function addInspectionImages({ inspectionId, files, panels = [] }) {
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append('files', file);
+  });
+  panels.forEach((panel) => {
+    formData.append('panels', panel);
+  });
+  return await api.postForm(`/api/v1/inspections/${encodeURIComponent(inspectionId)}/images`, formData);
+}
+
+export async function deleteInspectionImage(inspectionId, imageId) {
+  return await api.delete(`/api/v1/inspections/${encodeURIComponent(inspectionId)}/images/${encodeURIComponent(imageId)}`);
+}
+

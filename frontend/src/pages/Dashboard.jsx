@@ -89,36 +89,52 @@ export function Dashboard({ onNavigate, onOpenInspection, onLoadDemo }) {
 
       {/* Analytics Metric Cards (Derived from real inspections) */}
       <div className="metrics-grid">
-        <div className="metric-card">
-          <span className="metric-title">Total Inspections</span>
-          <span className="metric-value">{loading ? '...' : totalCount}</span>
+        <div className="metric-card" style={{ borderLeft: '4px solid var(--status-neutral-border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="metric-title" style={{ color: 'var(--status-neutral-text)' }}>
+              Total Inspections
+            </span>
+            <Layers size={16} style={{ color: 'var(--status-neutral-border)' }} />
+          </div>
+          <span className="metric-value" style={{ color: 'var(--status-neutral-text)' }}>
+            {loading ? '...' : totalCount}
+          </span>
           <span className="metric-footer">Active package audit sessions</span>
         </div>
 
-        <div className="metric-card" style={{ borderLeft: '3px solid var(--status-pass-border)' }}>
-          <span className="metric-title" style={{ color: 'var(--status-pass-text)' }}>
-            Compliant Packages
-          </span>
+        <div className="metric-card" style={{ borderLeft: '4px solid var(--status-pass-border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="metric-title" style={{ color: 'var(--status-pass-text)' }}>
+              Compliant Packages
+            </span>
+            <CheckCircle size={16} style={{ color: 'var(--status-pass-border)' }} />
+          </div>
           <span className="metric-value" style={{ color: 'var(--status-pass-text)' }}>
             {loading ? '...' : compliantCount}
           </span>
           <span className="metric-footer">Passed all mandatory rules</span>
         </div>
 
-        <div className="metric-card" style={{ borderLeft: '3px solid var(--status-fail-border)' }}>
-          <span className="metric-title" style={{ color: 'var(--status-fail-text)' }}>
-            Non-Compliant
-          </span>
+        <div className="metric-card" style={{ borderLeft: '4px solid var(--status-fail-border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="metric-title" style={{ color: 'var(--status-fail-text)' }}>
+              Non-Compliant
+            </span>
+            <XCircle size={16} style={{ color: 'var(--status-fail-border)' }} />
+          </div>
           <span className="metric-value" style={{ color: 'var(--status-fail-text)' }}>
             {loading ? '...' : nonCompliantCount}
           </span>
           <span className="metric-footer">Definite statutory infractions</span>
         </div>
 
-        <div className="metric-card" style={{ borderLeft: '3px solid var(--status-partial-border)' }}>
-          <span className="metric-title" style={{ color: 'var(--status-partial-text)' }}>
-            Needs Review / Partial
-          </span>
+        <div className="metric-card" style={{ borderLeft: '4px solid var(--status-partial-border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="metric-title" style={{ color: 'var(--status-partial-text)' }}>
+              Needs Review / Partial
+            </span>
+            <AlertTriangle size={16} style={{ color: 'var(--status-partial-border)' }} />
+          </div>
           <span className="metric-value" style={{ color: 'var(--status-partial-text)' }}>
             {loading ? '...' : partialCount}
           </span>
@@ -156,20 +172,14 @@ export function Dashboard({ onNavigate, onOpenInspection, onLoadDemo }) {
           </div>
         ) : inspections.length === 0 ? (
           /* Empty State */
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '3rem 1.5rem',
-              backgroundColor: 'rgba(31, 41, 55, 0.3)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px dashed var(--border-default)',
-            }}
-          >
-            <Layers size={48} style={{ margin: '0 auto 1rem', color: 'var(--text-muted)', opacity: 0.6 }} />
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <Layers size={28} />
+            </div>
+            <h3 className="empty-state-title">
               No Inspections Found
             </h3>
-            <p style={{ color: 'var(--text-secondary)', maxWidth: '520px', margin: '0 auto 1.5rem', fontSize: '0.9rem' }}>
+            <p className="empty-state-desc">
               No product inspections have been conducted yet in this environment. Create a new inspection or test with our pre-built Parle-G sample packaging.
             </p>
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -217,7 +227,7 @@ export function Dashboard({ onNavigate, onOpenInspection, onLoadDemo }) {
 
                   return (
                     <tr key={session.inspection_id}>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#93C5FD' }}>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--primary-500)' }}>
                         {session.inspection_id}
                       </td>
                       <td>

@@ -273,3 +273,156 @@ async def get_inspection_image(inspection_id: str, image_id: str):
         )
     content, media_type = image_data
     return Response(content=content, media_type=media_type)
+
+
+@router.post(
+    "/{inspection_id}/images",
+    response_model=InspectionSession,
+    summary="Add Packaging Panel Images to an Existing Inspection Session",
+    description="Uploads and analyzes additional packaging panel images, re-evaluating the entire session under the same inspection ID.",
+)
+async def add_inspection_images(
+    inspection_id: str,
+    files: List[UploadFile] = File(..., description="One or more additional packaging image files"),
+    panels: Optional[List[str]] = Form(None, description="Packaging panel types corresponding to the uploaded files"),
+):
+    session = inspection_store.get(inspection_id)
+    if not session:
+        raise InspectionStageError(
+            stage="upload",
+            error_code="SESSION_NOT_FOUND",
+            message=f"Inspection session '{inspection_id}' not found.",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    if not files:
+        raise InspectionStageError(
+            stage="upload",
+            error_code="NO_FILES_PROVIDED",
+            message="At least one packaging image file must be provided.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Normalize panels
+    panel_list: List[str] = []
+    if panels:
+        for p in panels:
+            if "," in p:
+                panel_list.extend([x.strip() for x in p.split(",") if x.strip()])
+            else:
+                panel_list.append(p.strip())
+
+    existing_images = list(session.images)
+    start_idx = len(existing_images)
+
+    new_analyzed_images: List[InspectionImage] = []
+    file_contents_list: List[tuple] = []
+
+    for idx, file in enumerate(files):
+        try:
+            contents = await file.read()
+        except Exception as read_exc:
+            raise InspectionStageError(
+                stage="upload",
+                error_code="READ_ERROR",
+                message=f"Failed to read uploaded file '{file.filename or idx}'.",
+                details=str(read_exc),
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not contents:
+            raise InspectionStageError(
+                stage="upload",
+                error_code="EMPTY_FILE",
+                message=f"Uploaded file '{file.filename or idx}' is empty.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        raw_panel = panel_list[idx] if idx < len(panel_list) else None
+        panel_type = _parse_panel(raw_panel)
+        image_id = f"img-{start_idx + idx + 1:03d}"
+
+        try:
+            inspection_image = analysis_service.analyze_inspection_image(
+                image_bytes=contents,
+                image_id=image_id,
+                filename=file.filename,
+                panel=panel_type,
+            )
+        except InspectionStageError:
+            raise
+        except Exception as proc_exc:
+            raise InspectionStageError(
+                stage="ocr",
+                error_code="OCR_PROCESSING_FAILED",
+                message=f"Failed to extract text or evaluate packaging panel '{file.filename or image_id}'.",
+                details=str(proc_exc),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        new_analyzed_images.append(inspection_image)
+        file_contents_list.append((image_id, contents, file.content_type or "image/jpeg"))
+
+    # Combine existing + new images
+    all_images = existing_images + new_analyzed_images
+
+    # Re-aggregate session findings across all images under the same inspection ID
+    updated_session = session_aggregator.aggregate_session(
+        images=all_images,
+        inspection_id=inspection_id,
+    )
+
+    # Save new image binaries and populate image_url
+    for image_id, raw_bytes, mime_type in file_contents_list:
+        inspection_store.save_image(inspection_id, image_id, raw_bytes, mime_type)
+
+    for img in updated_session.images:
+        img.image_url = f"/api/v1/inspections/{inspection_id}/images/{img.image_id}"
+
+    # Persist updated session
+    inspection_store.save(updated_session)
+    return updated_session
+
+
+@router.delete(
+    "/{inspection_id}/images/{image_id}",
+    response_model=InspectionSession,
+    summary="Remove a Packaging Panel Image from an Inspection Session",
+    description="Deletes a packaging panel image, removes all evidence derived from it, and re-evaluates the session under the same inspection ID.",
+)
+async def delete_inspection_image(inspection_id: str, image_id: str):
+    session = inspection_store.get(inspection_id)
+    if not session:
+        raise InspectionStageError(
+            stage="upload",
+            error_code="SESSION_NOT_FOUND",
+            message=f"Inspection session '{inspection_id}' not found.",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    target_image = next((img for img in session.images if img.image_id == image_id), None)
+    if not target_image:
+        raise InspectionStageError(
+            stage="evidence_mapping",
+            error_code="IMAGE_NOT_FOUND",
+            message=f"Image '{image_id}' for inspection session '{inspection_id}' not found.",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    # Filter out target image
+    remaining_images = [img for img in session.images if img.image_id != image_id]
+
+    # Delete binary from store
+    inspection_store.delete_image(inspection_id, image_id)
+
+    # Re-aggregate remaining images under the same inspection ID (eliminates stale evidence)
+    updated_session = session_aggregator.aggregate_session(
+        images=remaining_images,
+        inspection_id=inspection_id,
+    )
+
+    for img in updated_session.images:
+        img.image_url = f"/api/v1/inspections/{inspection_id}/images/{img.image_id}"
+
+    inspection_store.save(updated_session)
+    return updated_session

@@ -21,13 +21,18 @@ from backend.extraction.patterns import (
     STANDALONE_DATE_PATTERN,
     EMAIL_PATTERN,
     PHONE_PATTERN,
+    WEBSITE_PATTERN,
     CARE_KEYWORD_PATTERN,
     PIN_CODE_PATTERN,
+    US_ZIP_PATTERN,
     MFG_NAME_PATTERN,
     PACKED_BY_PATTERN,
     IMPORTED_BY_PATTERN,
     COUNTRY_OF_ORIGIN_PATTERN,
     INDIAN_STATES,
+    ADDRESS_KEYWORDS,
+    NUTRITION_EXCLUSIONS,
+    PRODUCT_NAME_EXCLUSIONS,
 )
 
 
@@ -101,34 +106,63 @@ class FieldExtractor:
         # Identify topmost non-declaration line as candidate product name
         for line in lines:
             t = line.strip()
-            # Ignore standard declaration boilerplate keywords and nutrition facts
-            if len(t) >= 3 and not any(
-                k in t.upper()
-                for k in [
-                    "MRP", "NET", "MFD", "PKD", "EXP", "USE BY", "BATCH",
-                    "INGREDIENTS", "CALL", "EMAIL", "MADE IN", "PACKED BY",
-                    "MANUFACTURED", "CONSUMER", "CUSTOMER", "PRICE", "Rs.", "₹",
-                    "NUTRITION", "SERVING", "CALORIES", "TOTAL FAT", "SATURATED",
-                    "CHOLESTEROL", "SODIUM", "CARBOHYDRATE", "PROTEIN", "GLUTEN FREE",
-                    "NO ARTIFICIAL", "NO PRESERVATIVES", "BARCODE",
-                ]
-            ):
-                return FieldResult[str](
-                    value=t,
-                    status=ExtractionStatus.PRESENT,
-                    confidence=0.90,
-                    raw_text=t,
-                )
+            if len(t) < 3:
+                continue
+            t_upper = t.upper()
+            # Exclude explicit price, quantity, and date code lines
+            if MRP_PATTERN.search(t) or STANDALONE_PRICE_PATTERN.search(t) or NET_QTY_PATTERN.search(t) or DATE_PREFIX_PATTERN.search(t):
+                continue
+            # Ignore standard declaration boilerplate, marketing/freshness slogans, nutrition facts, and handling instructions
+            if any(k in t_upper for k in PRODUCT_NAME_EXCLUSIONS):
+                continue
+            # Skip address lines (contains PIN/ZIP, state, or address indicators)
+            if PIN_CODE_PATTERN.search(t) or US_ZIP_PATTERN.search(t):
+                continue
+            if any(s.upper() in t_upper for s in INDIAN_STATES) and any(re.search(r"\b" + re.escape(kw) + r"\b", t_upper) for kw in ["MUMBAI", "DELHI", "ROAD", "STREET", "MARG", "CROSSING", "NAGAR", "AREA", "DISTRICT", "EAST", "WEST", "SECTOR", "PLOT"]):
+                continue
+            if any(re.search(r"\b" + re.escape(kw) + r"\b", t_upper) for kw in ["CROSSING", "LEVEL CROSSING", "PO BOX", "P.O. BOX", "INDUSTRIAL AREA", "SECTOR", "PLOT NO"]):
+                continue
+            if EMAIL_PATTERN.search(t) or PHONE_PATTERN.search(t):
+                continue
+            # Skip purely numeric or punctuation lines
+            if re.match(r"^[\d\s\.,;:!?'\"/\\#\-\(\)]+$", t):
+                continue
+            # Skip lines that are just barcodes or alphanumeric serial codes
+            if re.match(r"^[A-Z0-9]{8,}$", t):
+                continue
+
+            return FieldResult[str](
+                value=t,
+                status=ExtractionStatus.PRESENT,
+                confidence=0.90,
+                raw_text=t,
+            )
 
         if lines:
-            # Fallback: first non-empty line with lower confidence
-            first = lines[0].strip()
-            return FieldResult[str](
-                value=first,
-                status=ExtractionStatus.UNCLEAR,
-                confidence=0.60,
-                raw_text=first,
-            )
+            # Fallback only if candidate lines exist but didn't pass strict filter
+            for line in lines:
+                t = line.strip()
+                t_up = t.upper()
+                if len(t) < 3:
+                    continue
+                if any(k in t_up for k in PRODUCT_NAME_EXCLUSIONS):
+                    continue
+                if PIN_CODE_PATTERN.search(t) or US_ZIP_PATTERN.search(t):
+                    continue
+                if EMAIL_PATTERN.search(t) or PHONE_PATTERN.search(t):
+                    continue
+                if MRP_PATTERN.search(t) or STANDALONE_PRICE_PATTERN.search(t) or NET_QTY_PATTERN.search(t) or DATE_PREFIX_PATTERN.search(t):
+                    continue
+                if any(s.upper() in t_up for s in INDIAN_STATES) and any(re.search(r"\b" + re.escape(kw) + r"\b", t_up) for kw in ["MUMBAI", "DELHI", "ROAD", "STREET", "MARG", "CROSSING", "NAGAR", "AREA", "DISTRICT", "EAST", "WEST", "SECTOR", "PLOT"]):
+                    continue
+                if any(re.search(r"\b" + re.escape(kw) + r"\b", t_up) for kw in ["CROSSING", "LEVEL CROSSING", "PO BOX", "P.O. BOX", "INDUSTRIAL AREA", "SECTOR", "PLOT NO"]):
+                    continue
+                return FieldResult[str](
+                    value=t,
+                    status=ExtractionStatus.UNCLEAR,
+                    confidence=0.60,
+                    raw_text=t,
+                )
 
         return FieldResult[str](
             value=None,
@@ -142,8 +176,19 @@ class FieldExtractor:
         for line in lines:
             m = MFG_NAME_PATTERN.search(line)
             if m:
-                name = m.group(1).strip()
-                # Clean any trailing punctuation or commas
+                raw_val = m.group(1).strip()
+                suffix_match = re.search(
+                    r"^(.*?)\b(PVT\.?\s*LTD\.?|LTD\.?|LIMITED|INC\.?|CORP\.?|LLC\.?)(?:\.|\b)[:\s,-]*(.*)$",
+                    raw_val,
+                    re.IGNORECASE,
+                )
+                if suffix_match:
+                    co_suffix = suffix_match.group(2).strip()
+                    if raw_val[len(suffix_match.group(1)):].strip().startswith(f"{co_suffix}."):
+                        co_suffix += "."
+                    name = f"{suffix_match.group(1).strip()} {co_suffix}".strip()
+                else:
+                    name = raw_val.split(",")[0].strip() if "," in raw_val else raw_val
                 name = re.sub(r"^[.:\s-]+", "", name).strip()
                 return FieldResult[str](
                     value=name,
@@ -154,7 +199,17 @@ class FieldExtractor:
 
         m = MFG_NAME_PATTERN.search(raw_text)
         if m:
-            name = m.group(1).strip()
+            raw_val = m.group(1).strip()
+            suffix_match = re.search(
+                r"^(.*?)\b(PVT\.?\s*LTD\.?|LTD\.?|LIMITED|INC\.?|CORP\.?|LLC\.?)(?:\.|\b)[:\s,-]*(.*)$",
+                raw_val,
+                re.IGNORECASE,
+            )
+            if suffix_match:
+                co_suffix = suffix_match.group(2).strip()
+                name = f"{suffix_match.group(1).strip()} {co_suffix}".strip()
+            else:
+                name = raw_val.split(",")[0].strip() if "," in raw_val else raw_val
             name = re.sub(r"^[.:\s-]+", "", name).strip()
             return FieldResult[str](
                 value=name,
@@ -167,8 +222,19 @@ class FieldExtractor:
         for line in lines:
             t = line.strip()
             if any(s in t.upper() for s in ["FRITO-LAY", "PEPSICO", "PVT. LTD.", "PVT LTD", "LTD.", "LIMITED", "INC.", "CORP.", "LLC"]):
-                if not any(k in t.upper() for k in ["CALL", "EMAIL", "EXP", "MFD", "BEST BEFORE"]):
-                    candidate = t.split(",")[0].strip() if "," in t and not any(s in t.split(",")[0].upper() for s in ["INC", "LLC"]) else t.strip()
+                if not any(k in t.upper() for k in ["CALL", "EMAIL", "EXP", "MFD", "BEST BEFORE", "NUTRITION", "SERVING"]):
+                    suffix_match = re.search(
+                        r"^(.*?)\b(PVT\.?\s*LTD\.?|LTD\.?|LIMITED|INC\.?|CORP\.?|LLC\.?)(?:\.|\b)[:\s,-]*(.*)$",
+                        t,
+                        re.IGNORECASE,
+                    )
+                    if suffix_match:
+                        co_suffix = suffix_match.group(2).strip()
+                        if t[len(suffix_match.group(1)):].strip().startswith(f"{co_suffix}."):
+                            co_suffix += "."
+                        candidate = f"{suffix_match.group(1).strip()} {co_suffix}".strip()
+                    else:
+                        candidate = t.split(",")[0].strip() if "," in t else t.strip()
                     candidate = re.sub(r"^(?:MANUFACTURED\s*(?:BY|FOR)?|MFD\s*BY)[:\s.-]*", "", candidate, flags=re.IGNORECASE).strip()
                     return FieldResult[str](
                         value=candidate,
@@ -222,6 +288,8 @@ class FieldExtractor:
     ) -> FieldResult[str]:
         pin_match = PIN_CODE_PATTERN.search(raw_text)
         pin = pin_match.group(1).replace(" ", "") if pin_match else None
+        zip_match = US_ZIP_PATTERN.search(raw_text)
+        zip_code = zip_match.group(1) if zip_match else None
 
         state_found = None
         for state in INDIAN_STATES:
@@ -229,29 +297,92 @@ class FieldExtractor:
                 state_found = state
                 break
 
-        # Find line containing address or pin
-        address_line = None
+        # Contextual Search 1: Check lines attached to or following manufacturer declarations
+        mfg_idx = -1
         for idx, line in enumerate(lines):
-            if pin and pin in line:
-                address_line = line
-                # Merge preceding line if it was part of address
-                if idx > 0 and ("LTD" in lines[idx - 1].upper() or "PVT" in lines[idx - 1].upper()):
-                    address_line = f"{lines[idx - 1]}, {address_line}"
-                break
-            if "BY:" in line.upper() and ("," in line or state_found):
-                address_line = line
+            t_up = line.upper()
+            if any(k in t_up for k in ["MANUFACTURED BY", "MFD BY", "MKTD BY", "PACKED BY", "FRITO-LAY", "PEPSICO", "PVT LTD", "INC."]):
+                mfg_idx = idx
+                # Check if address is on the SAME line after corporate entity suffix
+                suffix_match = re.search(
+                    r"^(.*?)\b(PVT\.?\s*LTD\.?|LTD\.?|LIMITED|INC\.?|CORP\.?|LLC\.?)(?:\.|\b)[:\s,-]*(.*)$",
+                    line,
+                    re.IGNORECASE,
+                )
+                if suffix_match:
+                    addr_tail = suffix_match.group(3).strip().lstrip(",.- ").strip()
+                    if len(addr_tail) >= 6 and any(c.isalpha() for c in addr_tail):
+                        return FieldResult[str](
+                            value=addr_tail,
+                            status=ExtractionStatus.PRESENT,
+                            confidence=0.92,
+                            raw_text=addr_tail,
+                        )
                 break
 
-        if address_line:
-            return FieldResult[str](
-                value=address_line.strip(),
-                status=ExtractionStatus.PRESENT,
-                confidence=0.90,
-                raw_text=address_line.strip(),
-            )
+        # Contextual Search 2: Line immediately following manufacturer (idx + 1)
+        if mfg_idx >= 0 and mfg_idx + 1 < len(lines):
+            next_line = lines[mfg_idx + 1].strip()
+            next_up = next_line.upper()
+            if not any(k in next_up for k in ["NUTRITION", "SERVING", "CALORIES", "FAT", "NET WT", "MRP", "EXP", "QUESTIONS", "COUNTRY OF ORIGIN"]):
+                has_loc = (
+                    bool(US_ZIP_PATTERN.search(next_line))
+                    or bool(PIN_CODE_PATTERN.search(next_line))
+                    or any(re.search(r"\b" + re.escape(kw) + r"\b", next_up) for kw in ADDRESS_KEYWORDS)
+                    or any(s.upper() in next_up for s in INDIAN_STATES)
+                    or bool(re.search(r"\b[A-Z]{2}\s+\d{5}\b", next_line))
+                )
+                if has_loc:
+                    return FieldResult[str](
+                        value=next_line,
+                        status=ExtractionStatus.PRESENT,
+                        confidence=0.92,
+                        raw_text=next_line,
+                    )
 
-        if pin or state_found:
-            snippet = f"PIN: {pin or 'N/A'}, State: {state_found or 'N/A'}"
+        # Contextual Search 3: Check all lines for postal code or address keywords
+        for idx, line in enumerate(lines):
+            t = line.strip()
+            t_up = t.upper()
+            if any(k in t_up for k in ["NUTRITION", "SERVING", "CALORIES", "FAT", "NET WT", "MRP", "EXP", "QUESTIONS"]):
+                continue
+
+            if pin and pin in t:
+                address_line = t
+                if idx > 0 and any(s in lines[idx - 1].upper() for s in ["LTD", "PVT", "ROAD", "STREET", "PLOT", "SECTOR", "AREA"]):
+                    address_line = f"{lines[idx - 1].strip()}, {address_line}"
+                return FieldResult[str](
+                    value=address_line.strip(),
+                    status=ExtractionStatus.PRESENT,
+                    confidence=0.90,
+                    raw_text=address_line.strip(),
+                )
+
+            if zip_code and zip_code in t:
+                return FieldResult[str](
+                    value=t,
+                    status=ExtractionStatus.PRESENT,
+                    confidence=0.90,
+                    raw_text=t,
+                )
+
+            if any(s.upper() in t_up for s in INDIAN_STATES) and any(re.search(r"\b" + re.escape(kw) + r"\b", t_up) for kw in ADDRESS_KEYWORDS):
+                return FieldResult[str](
+                    value=t,
+                    status=ExtractionStatus.PRESENT,
+                    confidence=0.88,
+                    raw_text=t,
+                )
+
+        if pin or state_found or zip_code:
+            snippet_parts = []
+            if pin:
+                snippet_parts.append(f"PIN: {pin}")
+            if zip_code:
+                snippet_parts.append(f"ZIP: {zip_code}")
+            if state_found:
+                snippet_parts.append(f"State: {state_found}")
+            snippet = ", ".join(snippet_parts)
             return FieldResult[str](
                 value=snippet,
                 status=ExtractionStatus.UNCLEAR,
@@ -270,49 +401,72 @@ class FieldExtractor:
     ) -> FieldResult[str]:
         # Multi-pack check (e.g., 4 x 50 g)
         for line in lines:
-            m = MULTI_PACK_PATTERN.search(line)
+            t = line.strip()
+            if any(k in t.upper() for k in NUTRITION_EXCLUSIONS):
+                continue
+            m = MULTI_PACK_PATTERN.search(t)
             if m:
                 val = f"{m.group(1)} x {m.group(2)} {m.group(3)}"
                 return FieldResult[str](
                     value=val,
                     status=ExtractionStatus.PRESENT,
                     confidence=0.95,
-                    raw_text=line.strip(),
+                    raw_text=t,
                 )
 
-        # Standard Net Qty with prefix
+        # Standard Net Qty with prefix (e.g., "NET WEIGHT: 85 g")
         for line in lines:
-            m = NET_QTY_PATTERN.search(line)
+            t = line.strip()
+            # CRITICAL: Exclude any line containing nutrition facts (Total Fat, Dietary Fiber, Protein, etc.)
+            if any(k in t.upper() for k in NUTRITION_EXCLUSIONS):
+                continue
+            m = NET_QTY_PATTERN.search(t)
             if m:
                 val = f"{m.group(1)} {m.group(2)}"
                 return FieldResult[str](
                     value=val,
                     status=ExtractionStatus.PRESENT,
                     confidence=0.96,
-                    raw_text=line.strip(),
+                    raw_text=t,
                 )
 
-        m = NET_QTY_PATTERN.search(raw_text)
-        if m:
-            val = f"{m.group(1)} {m.group(2)}"
-            return FieldResult[str](
-                value=val,
-                status=ExtractionStatus.PRESENT,
-                confidence=0.90,
-                raw_text=m.group(0).strip(),
-            )
-
-        # Standalone quantity check
-        for line in lines:
-            m = STANDALONE_QTY_PATTERN.search(line)
+        for line in raw_text.splitlines():
+            t = line.strip()
+            if any(k in t.upper() for k in NUTRITION_EXCLUSIONS):
+                continue
+            m = NET_QTY_PATTERN.search(t)
             if m:
                 val = f"{m.group(1)} {m.group(2)}"
                 return FieldResult[str](
                     value=val,
-                    status=ExtractionStatus.UNCLEAR,
-                    confidence=0.70,
-                    raw_text=line.strip(),
+                    status=ExtractionStatus.PRESENT,
+                    confidence=0.90,
+                    raw_text=t,
                 )
+
+        # Standalone quantity check:
+        # Strictly require that the line is NOT a nutrition table entry, date, price, or serving declaration
+        for line in lines:
+            t = line.strip()
+            t_up = t.upper()
+            if any(k in t_up for k in NUTRITION_EXCLUSIONS):
+                continue
+            if any(k in t_up for k in ["MRP", "RS", "₹", "INR", "EXP", "USE BY", "BEST BEFORE", "MFD", "PKD", "BATCH", "LOT", "BARCODE"]):
+                continue
+            if any(k in t_up for k in PRODUCT_NAME_EXCLUSIONS):
+                continue
+
+            m = STANDALONE_QTY_PATTERN.search(t)
+            if m:
+                is_pure_qty = len(t) <= 15 or any(w in t_up for w in ["WEIGHT", "QTY", "NET", "CONTENT", "MASS", "VOL"])
+                if is_pure_qty:
+                    val = f"{m.group(1)} {m.group(2)}"
+                    return FieldResult[str](
+                        value=val,
+                        status=ExtractionStatus.UNCLEAR,
+                        confidence=0.70,
+                        raw_text=t,
+                    )
 
         return FieldResult[str](
             value=None,
@@ -324,39 +478,52 @@ class FieldExtractor:
         self, lines: List[str], raw_text: str, insufficient_context: bool
     ) -> FieldResult[str]:
         for line in lines:
-            m = MRP_PATTERN.search(line)
+            t = line.strip()
+            # CRITICAL: Exclude nutrition or serving lines
+            if any(k in t.upper() for k in NUTRITION_EXCLUSIONS):
+                continue
+            m = MRP_PATTERN.search(t)
             if m:
                 amount = m.group(1)
-                incl = " (incl. of all taxes)" if TAX_INCLUSIVE_PATTERN.search(line) or TAX_INCLUSIVE_PATTERN.search(raw_text) else ""
+                incl = " (incl. of all taxes)" if TAX_INCLUSIVE_PATTERN.search(t) or TAX_INCLUSIVE_PATTERN.search(raw_text) else ""
                 val = f"₹ {amount}{incl}"
                 return FieldResult[str](
                     value=val,
                     status=ExtractionStatus.PRESENT,
                     confidence=0.96,
-                    raw_text=line.strip(),
+                    raw_text=t,
                 )
 
-        m = MRP_PATTERN.search(raw_text)
-        if m:
-            amount = m.group(1)
-            val = f"₹ {amount}"
-            return FieldResult[str](
-                value=val,
-                status=ExtractionStatus.PRESENT,
-                confidence=0.90,
-                raw_text=m.group(0).strip(),
-            )
+        for line in raw_text.splitlines():
+            t = line.strip()
+            if any(k in t.upper() for k in NUTRITION_EXCLUSIONS):
+                continue
+            m = MRP_PATTERN.search(t)
+            if m:
+                amount = m.group(1)
+                val = f"₹ {amount}"
+                return FieldResult[str](
+                    value=val,
+                    status=ExtractionStatus.PRESENT,
+                    confidence=0.90,
+                    raw_text=t,
+                )
 
-        # Standalone currency/price
+        # Standalone currency/price (strictly requires ₹, Rs., Rs, INR, or $)
         for line in lines:
-            m = STANDALONE_PRICE_PATTERN.search(line)
+            t = line.strip()
+            if any(k in t.upper() for k in NUTRITION_EXCLUSIONS):
+                continue
+            if any(k in t.upper() for k in ["SERVING", "CALORIE", "CALORIES", "ENERGY", "PERCENT", "DV", "%"]):
+                continue
+            m = STANDALONE_PRICE_PATTERN.search(t)
             if m:
                 val = f"₹ {m.group(1)}"
                 return FieldResult[str](
                     value=val,
                     status=ExtractionStatus.UNCLEAR,
                     confidence=0.70,
-                    raw_text=line.strip(),
+                    raw_text=t,
                 )
 
         return FieldResult[str](
@@ -410,6 +577,7 @@ class FieldExtractor:
     ) -> FieldResult[str]:
         email_match = EMAIL_PATTERN.search(raw_text)
         phone_match = PHONE_PATTERN.search(raw_text)
+        website_match = WEBSITE_PATTERN.search(raw_text)
         has_heading = bool(CARE_KEYWORD_PATTERN.search(raw_text))
 
         details: List[str] = []
@@ -417,13 +585,15 @@ class FieldExtractor:
             details.append(f"Phone: {phone_match.group(1).strip()}")
         if email_match:
             details.append(f"Email: {email_match.group(0).strip()}")
+        if website_match and (has_heading or any(k in raw_text.upper() for k in ["CHAT", "VISIT", "FEEDBACK", "QUESTIONS", "CONTACT", "CARE", "SUPPORT"])):
+            details.append(f"Website: {website_match.group(0).strip()}")
 
         if details:
             combined = ", ".join(details)
             return FieldResult[str](
                 value=combined,
                 status=ExtractionStatus.PRESENT,
-                confidence=0.95 if (phone_match and email_match) else 0.85,
+                confidence=0.95 if len(details) >= 2 else 0.88,
                 raw_text=combined,
             )
 
@@ -446,6 +616,7 @@ class FieldExtractor:
             m = COUNTRY_OF_ORIGIN_PATTERN.search(line)
             if m:
                 country = m.group(1).strip()
+                country = re.sub(r"[\.,;:!-]+$", "", country).strip()
                 return FieldResult[str](
                     value=country,
                     status=ExtractionStatus.PRESENT,
@@ -456,6 +627,7 @@ class FieldExtractor:
         m = COUNTRY_OF_ORIGIN_PATTERN.search(raw_text)
         if m:
             country = m.group(1).strip()
+            country = re.sub(r"[\.,;:!-]+$", "", country).strip()
             return FieldResult[str](
                 value=country,
                 status=ExtractionStatus.PRESENT,

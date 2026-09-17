@@ -115,18 +115,29 @@ export function History({ onOpenInspection, onNavigate }) {
       <div className="card">
         {loading ? (
           <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-            <RefreshCw size={32} className="spinning" style={{ margin: '0 auto 1rem', color: '#3B82F6' }} />
+            <RefreshCw size={32} className="spinning" style={{ margin: '0 auto 1rem', color: 'var(--primary-500)' }} />
             <p>Loading historical audit sessions...</p>
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-            <HistoryIcon size={40} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <HistoryIcon size={28} />
+            </div>
+            <h3 className="empty-state-title">
               No Records Found
             </h3>
-            <p style={{ fontSize: '0.85rem' }}>
-              No inspections match the search criteria.
+            <p className="empty-state-desc">
+              No previous inspection records match your search or filter criteria. Try adjusting the query or view all inspections.
             </p>
+            {onNavigate && (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => onNavigate('new_inspection')}
+              >
+                Start New Inspection
+              </button>
+            )}
           </div>
         ) : (
           <div className="table-container">
@@ -153,7 +164,7 @@ export function History({ onOpenInspection, onNavigate }) {
 
                   return (
                     <tr key={session.inspection_id}>
-                      <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#93C5FD' }}>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--primary-500)' }}>
                         {session.inspection_id}
                       </td>
                       <td>

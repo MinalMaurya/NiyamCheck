@@ -57,15 +57,102 @@ class ReportService:
         }
         integrity_hash = compute_integrity_hash(hash_payload)
 
+        # Compile submitted panels and panel details
+        standard_panels_list = ["FRONT", "BACK", "LEFT", "RIGHT", "TOP", "BOTTOM"]
+        submitted_panels = []
+        panel_details = []
+        panels_map = {}
+
+        for img in getattr(session, "images", []):
+            p_val = getattr(img.panel, "value", str(img.panel)) if hasattr(img, "panel") else "UNKNOWN"
+            p_upper = (p_val or "UNKNOWN").upper()
+            submitted_panels.append(p_upper)
+            wc = img.ocr.word_count if (hasattr(img, "ocr") and img.ocr and hasattr(img.ocr, "word_count")) else 0
+            qs = img.quality.score if (hasattr(img, "quality") and img.quality and hasattr(img.quality, "score")) else 1.0
+            panel_details.append({
+                "panel": p_upper,
+                "image_id": getattr(img, "image_id", "img-unknown"),
+                "word_count": wc,
+                "quality_score": qs,
+            })
+            panels_map[p_upper] = panels_map.get(p_upper, 0) + wc
+
+        # Unique submitted panels
+        unique_submitted = list(dict.fromkeys(submitted_panels))
+        is_single_panel = len(unique_submitted) <= 1
+
+        coverage_standard = {}
+        for sp in standard_panels_list:
+            is_sub = sp in unique_submitted
+            coverage_standard[sp] = {
+                "status": "Submitted" if is_sub else "Not submitted",
+                "is_submitted": is_sub,
+                "word_count": panels_map.get(sp, 0),
+            }
+
+        package_coverage = {
+            "total_submitted": len(unique_submitted),
+            "submitted_panels": unique_submitted,
+            "standard_panels": coverage_standard,
+            "is_single_panel": is_single_panel,
+            "advisory": (
+                "Only 1 package panel was submitted. Some declarations may be located on another panel."
+                if is_single_panel else
+                f"Declarations and evidence were aggregated across all {len(unique_submitted)} submitted package surfaces."
+            ),
+        }
+
+        # Deterministic summary counts from compliance evaluations (no duplicates)
+        from backend.compliance.models import RuleStatus
+        evals = session.compliance.evaluations if (session.compliance and session.compliance.evaluations) else []
+        satisfied_count = sum(1 for e in evals if e.status == RuleStatus.PASS)
+        review_count = sum(1 for e in evals if e.status in (RuleStatus.REVIEW, RuleStatus.UNCLEAR))
+        issues_count = sum(1 for e in evals if e.status in (RuleStatus.FAIL, RuleStatus.POTENTIAL_ISSUE))
+        unverified_count = sum(1 for e in evals if e.status == RuleStatus.NOT_VERIFIABLE)
+
+        summary_counts = {
+            "satisfied": satisfied_count,
+            "review": review_count,
+            "potential_issues": issues_count,
+            "not_verifiable": unverified_count,
+            "total": len(evals),
+        }
+
+        what_you_can_do_next = [
+            "1. Review the finding against the complete physical product packaging.",
+            "2. Keep your purchase invoice, store bill, or digital receipt.",
+            "3. Save photographs of the product, packaging panels, and batch codes.",
+            "4. Contact the responsible company or customer care cell for clarification if appropriate.",
+            "5. If the issue remains unresolved, you may consult the relevant official consumer/government grievance procedure (National Consumer Helpline Toll-Free 1915 or consumerhelpline.gov.in).",
+        ]
+        if unverified_count > 0 or (is_single_panel and review_count > 0):
+            what_you_can_do_next.append(
+                "For unobserved declarations: Check whether another packaging panel contains the information, capture a clearer image, and re-run the inspection."
+            )
+
+        disclaimer_text = (
+            "This is an AI-assisted informational analysis based on the submitted evidence and referenced sources. "
+            "It is not a final legal determination. NiyamCheck does not determine that a company has legally violated "
+            "a requirement solely from this inspection."
+        )
+
         return InspectionReport(
             inspection_id=session.inspection_id,
             generated_at=datetime.utcnow(),
             overall_status=session.status,
             summary=session.summary,
             image_count=len(session.images),
+            product_category=getattr(session, "product_category", "Packaged Food"),
             product_information=prod_info,
             compliance=session.compliance,
             findings=session.compliance.findings,
+            structured_findings=getattr(session, "findings", []),
+            submitted_panels=unique_submitted,
+            panel_details=panel_details,
+            package_coverage=package_coverage,
+            summary_counts=summary_counts,
+            what_you_can_do_next=what_you_can_do_next,
+            disclaimer=disclaimer_text,
             evidence=session.evidence,
             limitations=self.DEFAULT_LIMITATIONS,
             integrity_hash=integrity_hash,

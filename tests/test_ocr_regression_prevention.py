@@ -175,6 +175,98 @@ class TestOCRRegressionPrevention(unittest.TestCase):
         self.assertNotIn("PARLE", full_json_str)
         self.assertNotIn("GLUCOSE BISCUITS", full_json_str)
 
+    def test_field_extraction_accuracy_real_world_lays_package(self):
+        """
+        Verify exact field extraction fixes for real-world Lay's / Frito-Lay packaging:
+        1. "Total Fat 15g" is NOT extracted as Net Quantity = 15g.
+        2. "GUARANTEED FRESH" is NOT classified as Product Name; "LAY'S CLASSIC POTATO CHIPS" is.
+        3. Arbitrary numbers like serving size "1" or sugar "3g" are NOT fabricated as MRP.
+        4. Frito-Lay manufacturer and Plano, TX address are accurately extracted.
+        5. 1-800 consumer care and Country of Origin: India are accurately extracted.
+        """
+        from backend.schemas.analysis import OCRResult, OCRRegion, ImageQualityResult, ImageQualityStatus
+        from backend.extraction.extractor import field_extractor
+
+        sample_lines = [
+            "GUARANTEED FRESH",
+            "UNTIL PRINTED DATE",
+            "LAY'S CLASSIC POTATO CHIPS",
+            "Nutrition Facts",
+            "Serving size 1 package",
+            "Calories 240",
+            "Total Fat 15g",
+            "Saturated Fat 2g",
+            "Cholesterol 0mg",
+            "Sodium 250mg",
+            "Total Carbohydrate 23g",
+            "Dietary Fiber 2g",
+            "Total Sugars 3g",
+            "Protein 3g",
+            "No artificial flavors",
+            "No preservatives",
+            "GLUTEN FREE",
+            "Questions or comments? 1-800-352-4477",
+            "Weekdays 9:00am to 4:30pm CT",
+            "email or chat at fritolay.com",
+            "Manufactured by: Frito-Lay, Inc.",
+            "Plano, TX 75024-4099, USA",
+            "Country of Origin: India",
+        ]
+
+        regions = [OCRRegion(text=line, confidence=0.95, box=[0.04 * i, 0.1, 0.04 * i + 0.03, 0.9]) for i, line in enumerate(sample_lines)]
+        ocr_res = OCRResult(text="\n".join(sample_lines), confidence=0.95, regions=regions)
+        quality = ImageQualityResult(status=ImageQualityStatus.GOOD, score=0.95, issues=[])
+
+        fields = field_extractor.extract(ocr_res, quality)
+
+        # 1. Product Name must be the brand/chips line, NOT the freshness slogan
+        self.assertNotEqual(fields.product_name.value, "GUARANTEED FRESH")
+        self.assertEqual(fields.product_name.value, "LAY'S CLASSIC POTATO CHIPS")
+
+        # 2. Net Quantity must NOT be "15 g" from "Total Fat 15g"
+        self.assertNotEqual(fields.net_quantity.value, "15 g")
+        self.assertIsNone(fields.net_quantity.value)
+
+        # 3. MRP must NOT be "₹ 1" or "₹ 3"
+        self.assertIsNone(fields.mrp.value)
+
+        # 4. Manufacturer & Address
+        self.assertEqual(fields.manufacturer.value, "Frito-Lay, Inc.")
+        self.assertEqual(fields.address.value, "Plano, TX 75024-4099, USA")
+
+        # 5. Consumer Care & Country of Origin
+        self.assertIsNotNone(fields.consumer_care.value)
+        self.assertIn("1-800-352-4477", fields.consumer_care.value)
+        self.assertIn("fritolay.com", fields.consumer_care.value)
+        self.assertEqual(fields.country_of_origin.value, "India")
+
+    def test_nutrition_exclusion_prevents_false_net_quantity_and_mrp(self):
+        """Ensure nutrition and serving facts never become Net Quantity or MRP declarations."""
+        from backend.schemas.analysis import OCRResult, OCRRegion
+        from backend.extraction.extractor import field_extractor
+
+        nutrition_lines = [
+            "CRUNCHY CORN CHIPS",
+            "Nutrition Information",
+            "Per 100g serving",
+            "Energy 500 kcal",
+            "Total Fat 25g",
+            "Saturated Fat 10g",
+            "Carbohydrate 60g",
+            "Total Sugars 4g",
+            "Sodium 450mg",
+            "Protein 8g",
+            "Manufactured by: SnackCo Ltd, Mumbai 400001",
+        ]
+        regions = [OCRRegion(text=line, confidence=0.95, box=[0.05 * i, 0.1, 0.05 * i + 0.04, 0.9]) for i, line in enumerate(nutrition_lines)]
+        ocr_res = OCRResult(text="\n".join(nutrition_lines), confidence=0.95, regions=regions)
+
+        fields = field_extractor.extract(ocr_res)
+        self.assertIsNone(fields.net_quantity.value, "Nutrition lines should not produce false Net Quantity")
+        self.assertIsNone(fields.mrp.value, "Nutrition lines should not produce false MRP")
+        self.assertEqual(fields.product_name.value, "CRUNCHY CORN CHIPS")
+
 
 if __name__ == "__main__":
     unittest.main()
+

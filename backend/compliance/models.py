@@ -61,6 +61,10 @@ class RuleDefinition(BaseModel):
     requirement: str = Field(..., description="Exact declaration requirement under Legal Metrology")
     field_name: str = Field(..., description="Related field in ExtractedFields")
     severity: RuleSeverity = Field(RuleSeverity.MANDATORY, description="MANDATORY or CONDITIONAL")
+    applicable_categories: Optional[List[str]] = Field(None, description="Categories where rule applies; None indicates all pre-packaged commodities")
+    legal_source_ref: Optional[str] = Field(None, description="Statutory rule section or schedule citation")
+    expected_declaration: Optional[str] = Field(None, description="Expected declaration text/format")
+    evidence_required: Optional[str] = Field(None, description="Description of evidence required to verify compliance")
 
 
 class RuleEvaluation(BaseModel):
@@ -78,6 +82,9 @@ class RuleEvaluation(BaseModel):
     detected_value: Optional[str] = Field(None, description="Extracted canonical value if detected")
     explanation: Optional[str] = Field(None, description="Detailed statutory explanation of finding")
     legal_source: Optional[str] = Field(None, description="Authoritative statutory source reference")
+    applicability: Optional[str] = Field("MANDATORY", description="Applicability status for evaluated commodity category")
+    expected_declaration: Optional[str] = Field(None, description="Expected declaration format")
+    evidence_required: Optional[str] = Field(None, description="Nature of evidence required to verify compliance")
     why_flagged: Optional[str] = Field(None, description="Clear plain-language explanation of why this item was flagged")
     what_can_i_do: Optional[str] = Field(None, description="Actionable recommendation for rectification or packaging verification")
     legal_basis: List[Any] = Field(

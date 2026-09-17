@@ -31,6 +31,10 @@ class InspectionStore(ABC):
         pass
 
     @abstractmethod
+    def delete_image(self, inspection_id: str, image_id: str) -> bool:
+        pass
+
+    @abstractmethod
     def clear(self) -> None:
         pass
 
@@ -69,6 +73,12 @@ class InMemoryInspectionStore(InspectionStore):
 
     def get_image(self, inspection_id: str, image_id: str) -> Optional[tuple]:
         return self._images.get(inspection_id, {}).get(image_id)
+
+    def delete_image(self, inspection_id: str, image_id: str) -> bool:
+        if inspection_id in self._images and image_id in self._images[inspection_id]:
+            del self._images[inspection_id][image_id]
+            return True
+        return False
 
     def clear(self) -> None:
         self._store.clear()

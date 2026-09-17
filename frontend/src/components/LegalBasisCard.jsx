@@ -40,16 +40,16 @@ export function LegalBasisCard({ legalBasis = [] }) {
             key={item.chunk_id || index}
             style={{
               padding: '1rem',
-              backgroundColor: 'rgba(30, 58, 138, 0.15)',
-              border: '1px solid rgba(59, 130, 246, 0.3)',
+              backgroundColor: 'var(--bg-surface-elevated)',
+              border: '1px solid var(--border-default)',
               borderRadius: 'var(--radius-md)',
               fontSize: '0.85rem',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <BookOpen size={16} style={{ color: '#60A5FA' }} />
-                <span style={{ fontWeight: 600, color: '#93C5FD' }}>
+                <BookOpen size={16} style={{ color: 'var(--primary-500)' }} />
+                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                   {sourceTitle}
                 </span>
               </div>
@@ -59,8 +59,9 @@ export function LegalBasisCard({ legalBasis = [] }) {
                     fontSize: '0.72rem',
                     padding: '0.15rem 0.45rem',
                     borderRadius: 'var(--radius-full)',
-                    backgroundColor: 'rgba(59, 130, 246, 0.25)',
-                    color: '#BFDBFE',
+                    backgroundColor: 'var(--status-pass-bg)',
+                    color: 'var(--status-pass-text)',
+                    border: '1px solid var(--status-pass-border)',
                     fontFamily: 'var(--font-mono)',
                   }}
                 >

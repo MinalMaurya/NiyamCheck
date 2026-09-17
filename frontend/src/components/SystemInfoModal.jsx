@@ -42,45 +42,32 @@ export function SystemInfoModal({ isOpen, onClose, isOnline, isPwaInstallable, o
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(4px)',
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
-      }}
+      className="modal-backdrop"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="system-info-modal-title"
     >
       <div
-        className="card"
-        style={{
-          width: '100%',
-          maxWidth: '560px',
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          position: 'relative',
-          padding: '1.5rem',
-        }}
+        className="modal-dialog"
+        style={{ maxWidth: '580px' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            System Information & Storage
+        <div className="modal-header">
+          <h2 id="system-info-modal-title" className="modal-title">
+            <Server size={20} style={{ color: 'var(--primary-500)' }} />
+            <span>System Information & Storage</span>
           </h2>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>
-            <X size={16} />
+          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close dialog">
+            <X size={18} />
           </button>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="modal-body">
           {/* Backend & Connectivity */}
-          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-md)' }}>
+          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-              <Server size={18} style={{ color: '#3B82F6' }} />
+              <Server size={18} style={{ color: 'var(--primary-500)' }} />
               <strong style={{ fontSize: '0.95rem' }}>Backend Connectivity</strong>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.85rem' }}>
@@ -98,7 +85,7 @@ export function SystemInfoModal({ isOpen, onClose, isOnline, isPwaInstallable, o
           </div>
 
           {/* Legal Knowledge Base Provenance */}
-          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-md)' }}>
+          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
               <Database size={18} style={{ color: '#8B5CF6' }} />
               <strong style={{ fontSize: '0.95rem' }}>Authoritative Legal Metrology RAG</strong>
@@ -132,7 +119,7 @@ export function SystemInfoModal({ isOpen, onClose, isOnline, isPwaInstallable, o
           </div>
 
           {/* PWA & Mobile Capabilities */}
-          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-md)' }}>
+          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
               <Smartphone size={18} style={{ color: '#10B981' }} />
               <strong style={{ fontSize: '0.95rem' }}>Progressive Web App (PWA)</strong>
@@ -158,7 +145,7 @@ export function SystemInfoModal({ isOpen, onClose, isOnline, isPwaInstallable, o
           </div>
 
           {/* Offline Draft Storage */}
-          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-md)' }}>
+          <div style={{ padding: '1rem', backgroundColor: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <HardDrive size={18} style={{ color: '#F59E0B' }} />
@@ -183,7 +170,7 @@ export function SystemInfoModal({ isOpen, onClose, isOnline, isPwaInstallable, o
           </div>
         </div>
 
-        <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end' }}>
+        <div className="modal-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Close
           </button>

@@ -5,8 +5,9 @@
  */
 
 const DB_NAME = 'niyamcheck_db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'drafts';
+const EVIDENCE_STORE = 'evidence';
 
 function openDatabase() {
   return new Promise((resolve, reject) => {
@@ -22,6 +23,11 @@ function openDatabase() {
         const store = db.createObjectStore(STORE_NAME, { keyPath: 'draftId' });
         store.createIndex('updatedAt', 'updatedAt', { unique: false });
         store.createIndex('status', 'status', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(EVIDENCE_STORE)) {
+        const evStore = db.createObjectStore(EVIDENCE_STORE, { keyPath: 'evidenceId' });
+        evStore.createIndex('inspectionId', 'inspectionId', { unique: false });
+        evStore.createIndex('savedAt', 'savedAt', { unique: false });
       }
     };
 
@@ -116,6 +122,78 @@ export const draftStore = {
       const request = store.clear();
 
       request.onsuccess = () => resolve(true);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Preserve evidence item associated with a finding locally.
+   */
+  async saveEvidence(evidence) {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(EVIDENCE_STORE, 'readwrite');
+      const store = tx.objectStore(EVIDENCE_STORE);
+      const item = {
+        evidenceId: evidence.evidenceId || `ev-${evidence.inspectionId || 'insp'}-${evidence.ruleId || 'rule'}-${Date.now()}`,
+        inspectionId: evidence.inspectionId || 'unknown',
+        ruleId: evidence.ruleId || 'N/A',
+        requirement: evidence.requirement || evidence.name || '',
+        detectedValue: evidence.detectedValue || '',
+        evidenceText: evidence.evidenceText || '',
+        packagePanel: evidence.packagePanel || 'UNKNOWN',
+        imageId: evidence.imageId || null,
+        imageUrl: evidence.imageUrl || null,
+        boundingBox: evidence.boundingBox || null,
+        savedAt: new Date().toISOString(),
+      };
+      const request = store.put(item);
+      request.onsuccess = () => resolve(item);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Retrieve saved evidence items, optionally filtered by inspectionId.
+   */
+  async listSavedEvidence(inspectionId = null) {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(EVIDENCE_STORE, 'readonly');
+      const store = tx.objectStore(EVIDENCE_STORE);
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const list = request.result || [];
+        if (inspectionId) {
+          resolve(list.filter((item) => item.inspectionId === inspectionId));
+        } else {
+          resolve(list);
+        }
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Save an entire inspection session record locally without duplicates.
+   */
+  async saveInspectionSession(session) {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const id = session.inspection_id || `insp-${Date.now()}`;
+      const record = {
+        draftId: id,
+        inspectionId: id,
+        title: `Inspection — ${session.product_category || 'Packaged Product'} (${id})`,
+        createdAt: session.created_at || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        sessionData: session,
+        status: 'completed_inspection',
+      };
+      const request = store.put(record);
+      request.onsuccess = () => resolve(record);
       request.onerror = () => reject(request.error);
     });
   },

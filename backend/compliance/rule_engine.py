@@ -7,7 +7,7 @@ from backend.compliance.models import (
     ComplianceStatus,
     ComplianceResult,
 )
-from backend.compliance.rules import DEFAULT_RULES, RULE_VALIDATOR_MAP
+from backend.compliance.rules import DEFAULT_RULES, RULE_VALIDATOR_MAP, get_applicable_rules
 from backend.compliance.explanations import (
     generate_findings,
     generate_compliance_summary,
@@ -23,7 +23,12 @@ class ComplianceRuleEngine:
     def __init__(self, rules: Optional[List[RuleDefinition]] = None):
         self.rules = rules or DEFAULT_RULES
 
-    def evaluate(self, fields: ExtractedFields) -> ComplianceResult:
+    def evaluate(
+        self,
+        fields: ExtractedFields,
+        category: Optional[str] = None,
+        context: Optional[dict] = None,
+    ) -> ComplianceResult:
         """
         Executes rule-by-rule evaluation against the extracted product declarations.
         Returns an auditable, structured ComplianceResult.
@@ -36,7 +41,13 @@ class ComplianceRuleEngine:
         not_verifiable_count = 0
         not_applicable_count = 0
 
-        for rule in self.rules:
+        rules_to_evaluate = (
+            get_applicable_rules(category, context)
+            if (category and self.rules == DEFAULT_RULES)
+            else self.rules
+        )
+
+        for rule in rules_to_evaluate:
             # 1. Retrieve the corresponding extracted field
             field_obj: Optional[FieldResult[str]] = getattr(fields, rule.field_name, None)
 
@@ -56,9 +67,9 @@ class ComplianceRuleEngine:
             # 3. Increment counters
             if status == RuleStatus.PASS:
                 passed_count += 1
-            elif status == RuleStatus.FAIL:
+            elif status in (RuleStatus.FAIL, RuleStatus.POTENTIAL_ISSUE):
                 failed_count += 1
-            elif status == RuleStatus.UNCLEAR:
+            elif status in (RuleStatus.UNCLEAR, RuleStatus.REVIEW):
                 unclear_count += 1
             elif status == RuleStatus.NOT_VERIFIABLE:
                 not_verifiable_count += 1
@@ -77,6 +88,10 @@ class ComplianceRuleEngine:
                     evidence=evidence,
                     confidence=round(confidence, 2),
                     field=rule.field_name,
+                    applicability=rule.severity.value,
+                    expected_declaration=rule.expected_declaration,
+                    evidence_required=rule.evidence_required,
+                    legal_source=rule.legal_source_ref,
                 )
             )
 

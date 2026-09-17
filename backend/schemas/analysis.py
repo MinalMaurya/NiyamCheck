@@ -58,6 +58,10 @@ class FieldResult(BaseModel, Generic[T]):
     status: ExtractionStatus = Field(ExtractionStatus.NOT_VERIFIABLE, description="Extraction certainty state")
     confidence: float = Field(0.0, ge=0.0, le=1.0, description="Extraction confidence score")
     raw_text: Optional[str] = Field(None, description="Verbatim text snippet from label")
+    source_panel: Optional[str] = Field(None, description="Packaging panel where value was primarily detected")
+    source_image_id: Optional[str] = Field(None, description="Image ID where value was primarily detected")
+    additional_sources: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Other panels where same value was observed")
+    conflicts: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Conflicting values detected across different panels")
 
 
 class ExtractedFields(BaseModel):

@@ -73,7 +73,7 @@ export function LegalSources() {
         <div className="metrics-grid" style={{ marginBottom: '2rem' }}>
           <div className="metric-card">
             <span className="metric-title">Official Acts & Rules</span>
-            <span className="metric-value" style={{ color: '#93C5FD' }}>
+            <span className="metric-value" style={{ color: 'var(--primary-500)' }}>
               {status.documents_count || sources.length}
             </span>
             <span className="metric-footer">Sovereign statutory instruments</span>
@@ -126,7 +126,7 @@ export function LegalSources() {
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-            <RefreshCw size={32} className="spinning" style={{ margin: '0 auto 1rem', color: '#3B82F6' }} />
+            <RefreshCw size={32} className="spinning" style={{ margin: '0 auto 1rem', color: 'var(--primary-500)' }} />
             <p>Loading statutory documents...</p>
           </div>
         ) : (
@@ -150,8 +150,9 @@ export function LegalSources() {
                           fontSize: '0.75rem',
                           padding: '0.15rem 0.5rem',
                           borderRadius: '4px',
-                          backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                          color: '#93C5FD',
+                          backgroundColor: 'var(--status-pass-bg)',
+                          color: 'var(--primary-500)',
+                          border: '1px solid rgba(16, 185, 129, 0.25)',
                         }}
                       >
                         {doc.source_id}

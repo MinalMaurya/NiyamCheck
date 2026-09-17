@@ -12,6 +12,9 @@ import {
   Info,
   Wifi,
   WifiOff,
+  Settings as SettingsIcon,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 export function Navbar({
@@ -19,8 +22,11 @@ export function Navbar({
   setActiveTab,
   isOnline = true,
   isPwaInstallable = false,
-  onInstallPwa = null,
-  onOpenSystemInfo = null,
+  onInstallPwa,
+  onOpenSystemInfo,
+  onOpenInstallApp,
+  theme = 'dark',
+  onToggleTheme,
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -30,11 +36,20 @@ export function Navbar({
     { id: 'history', label: 'History', icon: History },
     { id: 'legal_search', label: 'Legal Search', icon: Search },
     { id: 'legal_sources', label: 'Legal Sources', icon: BookOpen },
+    { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ];
 
-  const handleNavClick = (id) => {
-    setActiveTab(id);
+  const handleNavClick = (tabId) => {
+    setActiveTab(tabId);
     setMobileMenuOpen(false);
+  };
+
+  const handleInstallClick = () => {
+    if (onOpenInstallApp) {
+      onOpenInstallApp();
+    } else if (onInstallPwa) {
+      onInstallPwa();
+    }
   };
 
   return (
@@ -86,16 +101,28 @@ export function Navbar({
 
         {/* Action Controls & Health Status */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          {/* PWA Install Button */}
-          {isPwaInstallable && (
+          {/* Install App Button */}
+          <button
+            type="button"
+            className="btn btn-sm btn-primary pwa-install-btn"
+            onClick={handleInstallClick}
+            title="Install NiyamCheck Mobile App"
+          >
+            <Smartphone size={14} />
+            <span>Install App</span>
+          </button>
+
+          {/* Theme Toggle Button */}
+          {onToggleTheme && (
             <button
               type="button"
-              className="btn btn-sm btn-primary pwa-install-btn"
-              onClick={onInstallPwa}
-              title="Install NiyamCheck to Home Screen"
+              className="btn btn-secondary btn-sm"
+              onClick={onToggleTheme}
+              title={theme === 'light' ? 'Switch to Dark theme' : 'Switch to Light theme'}
+              aria-label="Toggle color theme"
+              style={{ padding: '0.4rem 0.5rem' }}
             >
-              <Smartphone size={14} />
-              <span>Install App</span>
+              {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
             </button>
           )}
 
