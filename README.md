@@ -15,47 +15,57 @@ NiyamCheck is a prototype inspection platform designed to assist in verifying ma
 
 ---
 
-## 📌 Problem Overview
+## 📌 Problem Overview & The Research Gap
 
-Under the Legal Metrology (Packaged Commodities) Rules, 2011, pre-packaged goods sold in India are required to carry specific mandatory declarations on their packaging surfaces. In real-world packaging, these declarations are often:
-* Distributed across multiple panels (front, back, sides, top, bottom)
-* Printed in small, dense, or styled typography
-* Subject to varied packaging geometries, lighting conditions, and partial views
+### The Core Research Gap
+**Automated compliance checking of packaged commodities cannot rely on OCR alone.**
 
-Inspecting packages manually across multiple faces can be tedious and prone to human oversight. NiyamCheck assists this process by extracting visible declarations from one or more photographs of a package, aggregating declarations across panels, running deterministic compliance checks against codified rules, indexing visual evidence, and grounding each evaluation in relevant statutory provisions.
+Under the Legal Metrology (Packaged Commodities) Rules, 2011, pre-packaged goods sold in India are required to carry specific mandatory declarations on their packaging surfaces. In real-world retail and industrial environments, packaging contains:
+* **Complex Visual Layouts:** Declarations are distributed non-linearly across irregular 3D packaging geometries (pouches, cans, bottles, folding boxes) surrounded by high-contrast branding, promotional slogans, and decorative graphics.
+* **Small, Curved, or Distorted Text:** Mandatory text is frequently printed in diminutive font sizes ($\le 1.5\text{ mm}$), on reflective foils with specular glare, or across curved packaging seams and crimps.
+* **Multiple Competing Declarations & Ambiguity:** Packages feature multiple competing numbers, dates, and entities (e.g., nutritional table gram weights vs. declared Net Quantity; manufacturing dates vs. expiry dates vs. batch codes; brand owner vs. manufacturer vs. third-party packer vs. importer).
+* **Statutory Layout & Placement Mandates:** Legal Metrology law prescribes not just what is printed, but **where** (Principal Display Panel / PDP for generic name and net quantity), **at what size** (minimum font height proportional to package surface area under Rule 7), and **in what grouping** (Unit Sale Price adjacent to MRP under Rule 6(11)).
+
+To solve this, NiyamCheck provides a **Multimodal Legal Metrology Compliance Framework** that unifies multi-engine OCR, semantic information extraction, packaging visual/layout analysis, and deterministic rule-based legal reasoning to determine not only whether a declaration exists, but whether it is **complete**, **correctly interpreted**, **readable**, **appropriately placed**, and **compliant**, while generating audit-grade visual proof.
 
 ---
 
 ## 🏗️ Architecture & Pipeline
 
-NiyamCheck processes package images through a linear, deterministic pipeline:
+NiyamCheck processes multi-panel packaging images through a 4-layer multimodal architecture:
 
 ```text
-Package Images
-      │
-      ▼
-Image Validation / Quality Assessment
-      │
-      ▼
-OCR + Field Extraction
-      │
-      ▼
-Multi-Image Aggregation
-      │
-      ▼
-Deterministic Compliance Rule Engine
-      │
-      ├──────────────► Evidence Mapping
-      │
-      ▼
-Legal Knowledge Retrieval
-      │
-      ▼
-Inspection Results
-      │
-      ├──────────────► Inspection History
-      │
-      └──────────────► JSON / PDF Inspection Report
+                     Multi-Panel Packaging Images
+                  (Front / Back / Sides / Top / Bottom)
+                                  │
+         ┌────────────────────────┴────────────────────────┐
+         ▼                                                 ▼
+Visual & Layout Analysis                             Multi-Engine OCR
+• Principal Display Panel (PDP)                   • Bounding-Box Detection
+• Local Contrast & Crop Sharpness                 • Multi-Scale Recognition
+• Font Height Ratio (Rule 7/8)                    • Normalized Coordinates
+• Spatial Proximity & Grouping                    • Confidence Scoring
+         │                                                 │
+         └────────────────────────┬────────────────────────┘
+                                  ▼
+           Contextual Semantic Extraction & Disambiguation
+           • Disambiguate Nutritional Tables vs Net Quantity
+           • Temporal Disambiguation (MFD / PKD / EXP / Batch)
+           • Commercial Entity Classification (Mfg / Packer / Importer)
+           • Statutory Sub-Element Completeness Verification
+                                  ▼
+           Deterministic Compliance Rule Engine (5 Pillars)
+           [1] Existence  [2] Completeness  [3] Readability
+           [4] Appropriate Placement        [5] Correct Interpretation
+                                  │
+                                  ├──────────────► Multimodal Evidence Mapping
+                                  │                (Visual Crops, BBoxes, Metrics)
+                                  ▼
+           Authoritative Legal Knowledge Retrieval (RAG)
+           (Codified PCR 2011 Rules 6, 7, 8, 9, 18 + Official Sources)
+                                  ▼
+           Auditable Inspection Results & History
+           (JSON & PDF Inspection Reports with SHA-256 Digest)
 ```
 
 ---

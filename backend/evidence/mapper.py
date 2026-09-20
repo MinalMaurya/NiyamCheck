@@ -64,6 +64,16 @@ class EvidenceMapper:
                 bbox = None
                 evidence_conf = ev.confidence
 
+            layout_dict = None
+            read_dict = None
+            sem_role = None
+
+            if field_obj and getattr(field_obj, "multimodal", None):
+                mm = field_obj.multimodal
+                layout_dict = mm.placement.model_dump() if hasattr(mm.placement, "model_dump") else mm.placement.dict()
+                read_dict = mm.readability.model_dump() if hasattr(mm.readability, "model_dump") else mm.readability.dict()
+                sem_role = mm.interpretation.disambiguation_type
+
             # Create structured RuleEvidence attached to the evaluation
             rule_ev = RuleEvidence(
                 text=evidence_text,
@@ -71,6 +81,9 @@ class EvidenceMapper:
                 bounding_box=bbox,
                 confidence=round(evidence_conf, 2),
                 panel=panel,
+                layout_analysis=layout_dict,
+                readability=read_dict,
+                semantic_role=sem_role,
             )
             ev.evidence = rule_ev
 
@@ -86,6 +99,9 @@ class EvidenceMapper:
                 bounding_box=bbox,
                 source="ocr",
                 panel=panel,
+                layout_analysis=layout_dict,
+                readability=read_dict,
+                semantic_role=sem_role,
             )
             evidence_items.append(item)
 

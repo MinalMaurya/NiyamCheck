@@ -76,6 +76,42 @@ class ComplianceRuleEngine:
             elif status == RuleStatus.NOT_APPLICABLE:
                 not_applicable_count += 1
 
+            # Multimodal verification dimensions addressing the packaging research gap
+            comp_status = "COMPLETE"
+            read_status = "CLEAR"
+            place_status = "COMPLIANT_PDP" if rule.field_name in ["product_name", "net_quantity"] else "SECONDARY_PANEL"
+            interp_status = "VERIFIED"
+            mm_dict = None
+
+            if getattr(field_obj, "multimodal", None):
+                mm = field_obj.multimodal
+                mm_dict = mm.model_dump() if hasattr(mm, "model_dump") else mm.dict()
+
+                if status in (RuleStatus.NOT_VERIFIABLE, RuleStatus.NOT_APPLICABLE):
+                    comp_status = status.value
+                    read_status = status.value
+                else:
+                    comp_status = "COMPLETE" if mm.completeness.is_complete else ("PARTIAL" if mm.completeness.completeness_score > 0 else "INCOMPLETE")
+                    read_status = "DISTORTED" if mm.readability.is_distorted else ("CLEAR" if mm.readability.is_readable else "ILLEGIBLE")
+
+                if mm.placement.is_on_pdp:
+                    place_status = "COMPLIANT_PDP"
+                elif mm.placement.is_appropriately_placed is False:
+                    place_status = "NON_COMPLIANT_PLACEMENT"
+                elif mm.placement.panel != "UNKNOWN":
+                    place_status = "SECONDARY_PANEL"
+                else:
+                    place_status = "NOT_APPLICABLE"
+
+                interp_status = "VERIFIED" if mm.interpretation.is_correctly_interpreted else "AMBIGUOUS"
+            elif status in (RuleStatus.NOT_VERIFIABLE, RuleStatus.NOT_APPLICABLE):
+                comp_status = status.value
+                read_status = status.value
+                place_status = status.value
+                interp_status = status.value
+            elif status in (RuleStatus.FAIL, RuleStatus.POTENTIAL_ISSUE):
+                comp_status = "INCOMPLETE"
+
             # 4. Record rule evaluation
             evaluations.append(
                 RuleEvaluation(
@@ -92,6 +128,11 @@ class ComplianceRuleEngine:
                     expected_declaration=rule.expected_declaration,
                     evidence_required=rule.evidence_required,
                     legal_source=rule.legal_source_ref,
+                    completeness_status=comp_status,
+                    readability_status=read_status,
+                    placement_status=place_status,
+                    interpretation_status=interp_status,
+                    multimodal_assessment=mm_dict,
                 )
             )
 

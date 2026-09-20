@@ -283,6 +283,14 @@ class SessionAggregator:
                 "evidence_required": ev.evidence_required,
                 "conflicts": conflicts_data,
                 "additional_sources": additional_sources_data,
+                "completeness_status": ev.completeness_status or "COMPLETE",
+                "readability_status": ev.readability_status or "CLEAR",
+                "placement_status": ev.placement_status or "COMPLIANT_PDP",
+                "interpretation_status": ev.interpretation_status or "VERIFIED",
+                "multimodal_assessment": ev.multimodal_assessment,
+                "layout_analysis": ev.evidence.layout_analysis if (ev.evidence and hasattr(ev.evidence, "layout_analysis")) else None,
+                "readability": ev.evidence.readability if (ev.evidence and hasattr(ev.evidence, "readability")) else None,
+                "semantic_role": ev.evidence.semantic_role if (ev.evidence and hasattr(ev.evidence, "semantic_role")) else None,
             })
 
         return InspectionSession(
@@ -426,10 +434,14 @@ class SessionAggregator:
                     conflicts=conflicts_list,
                 )
 
-            # Consistent / duplicate: Pick highest confidence as primary and record additional sources
+            # Consistent / duplicate: Pick highest multimodal score and confidence as primary
             primary = max(
                 present_candidates,
-                key=lambda c: (c.confidence, len(c.value or ""))
+                key=lambda c: (
+                    c.multimodal.overall_multimodal_score if getattr(c, "multimodal", None) else 0.0,
+                    c.confidence,
+                    len(c.value or ""),
+                )
             )
             additional = [c for c in present_candidates if c != primary]
             additional_sources = [

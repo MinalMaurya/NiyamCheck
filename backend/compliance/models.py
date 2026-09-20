@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, List, Union, Any
+from typing import Optional, List, Union, Any, Dict
 from pydantic import BaseModel, Field
 
 
@@ -87,6 +87,12 @@ class RuleEvaluation(BaseModel):
     evidence_required: Optional[str] = Field(None, description="Nature of evidence required to verify compliance")
     why_flagged: Optional[str] = Field(None, description="Clear plain-language explanation of why this item was flagged")
     what_can_i_do: Optional[str] = Field(None, description="Actionable recommendation for rectification or packaging verification")
+    # Multimodal verification dimensions addressing the packaging research gap
+    completeness_status: Optional[str] = Field("COMPLETE", description="Statutory sub-element completeness (COMPLETE, PARTIAL, INCOMPLETE)")
+    readability_status: Optional[str] = Field("CLEAR", description="Visual readability (CLEAR, DISTORTED, ILLEGIBLE)")
+    placement_status: Optional[str] = Field("COMPLIANT_PDP", description="Layout placement (COMPLIANT_PDP, SECONDARY_PANEL, NON_COMPLIANT_PLACEMENT, NOT_APPLICABLE)")
+    interpretation_status: Optional[str] = Field("VERIFIED", description="Semantic disambiguation (VERIFIED, AMBIGUOUS, MISINTERPRETED)")
+    multimodal_assessment: Optional[Dict[str, Any]] = Field(None, description="Detailed multimodal assessment sub-scores")
     legal_basis: List[Any] = Field(
         default_factory=list,
         description="Supporting statutory legal provisions retrieved from authoritative knowledge base (Milestone 4)",

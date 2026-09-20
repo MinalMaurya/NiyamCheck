@@ -1,5 +1,5 @@
 import re
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from backend.schemas.analysis import (
     OCRResult,
@@ -36,15 +36,31 @@ from backend.extraction.patterns import (
 )
 
 
+from backend.cv.layout_analyzer import layout_analyzer
+from backend.extraction.semantic_extractor import semantic_extractor
+from backend.schemas.analysis import (
+    MultimodalAssessment,
+    CompletenessAssessment,
+    ReadabilityAssessment,
+    PlacementAssessment,
+    InterpretationAssessment,
+)
+
+
 class FieldExtractor:
     """
     Open-world structured declaration extractor.
     Extracts product declarations without assuming a closed-set catalog of products.
     Assigns extraction states (PRESENT, MISSING, UNCLEAR, NOT_APPLICABLE, NOT_VERIFIABLE).
+    Enriches declarations with multimodal assessments (completeness, readability, placement, interpretation).
     """
 
     def extract(
-        self, ocr_result: OCRResult, quality_result: Optional[ImageQualityResult] = None
+        self,
+        ocr_result: OCRResult,
+        quality_result: Optional[ImageQualityResult] = None,
+        image: Optional[Any] = None,
+        panel: str = "UNKNOWN",
     ) -> ExtractedFields:
         raw_text = ocr_result.text or ""
         regions = ocr_result.regions or []
@@ -56,6 +72,9 @@ class FieldExtractor:
         is_poor_quality = quality_result is not None and quality_result.status == ImageQualityStatus.POOR
         is_sparse = len(region_texts) < 3 or len(raw_text.strip()) < 30
         insufficient_context = is_poor_quality or is_sparse
+
+        # Detect if this panel represents the Principal Display Panel (PDP)
+        is_pdp = layout_analyzer.detect_pdp(image, ocr_result, panel)
 
         # 1. Product Name (open-world extraction)
         product_name_res = self._extract_product_name(region_texts, raw_text, insufficient_context)
@@ -87,6 +106,30 @@ class FieldExtractor:
         # 10. Country of Origin
         origin_res = self._extract_country_of_origin(region_texts, raw_text)
 
+        # Attach multimodal assessments across all 5 verification pillars
+        fields_map = {
+            "product_name": product_name_res,
+            "manufacturer": mfg_res,
+            "packer": packer_res,
+            "importer": importer_res,
+            "address": address_res,
+            "net_quantity": net_qty_res,
+            "mrp": mrp_res,
+            "date_information": date_res,
+            "consumer_care": care_res,
+            "country_of_origin": origin_res,
+        }
+
+        for field_name, f_res in fields_map.items():
+            self._attach_multimodal_assessment(
+                field_name=field_name,
+                field_res=f_res,
+                ocr_result=ocr_result,
+                image=image,
+                panel=panel,
+                is_pdp=is_pdp,
+            )
+
         return ExtractedFields(
             product_name=product_name_res,
             manufacturer=mfg_res,
@@ -98,6 +141,96 @@ class FieldExtractor:
             date_information=date_res,
             consumer_care=care_res,
             country_of_origin=origin_res,
+        )
+
+    def _find_matching_box(
+        self, field_res: FieldResult[str], ocr_result: OCRResult
+    ) -> Optional[List[float]]:
+        """Finds the bounding box most closely corresponding to the extracted field value."""
+        if not ocr_result.regions:
+            return None
+
+        val = (field_res.value or "").strip().lower()
+        raw = (field_res.raw_text or "").strip().lower()
+
+        # Exact or substring match in region text
+        for r in ocr_result.regions:
+            if not r.box:
+                continue
+            r_text = r.text.strip().lower()
+            if val and (val in r_text or r_text in val):
+                return r.box
+            if raw and (raw in r_text or r_text in raw):
+                return r.box
+
+        # Keyword match
+        for r in ocr_result.regions:
+            if not r.box:
+                continue
+            r_text = r.text.strip().lower()
+            words = [w for w in val.split() if len(w) >= 3]
+            if words and any(w in r_text for w in words):
+                return r.box
+
+        return None
+
+    def _attach_multimodal_assessment(
+        self,
+        field_name: str,
+        field_res: FieldResult[str],
+        ocr_result: OCRResult,
+        image: Optional[Any],
+        panel: str,
+        is_pdp: bool,
+    ):
+        """Attaches 5-pillar multimodal assessment to an extracted field."""
+        box = self._find_matching_box(field_res, ocr_result)
+
+        # 1. Completeness Assessment
+        completeness = semantic_extractor.assess_completeness(
+            field_name=field_name,
+            value=field_res.value,
+            raw_text=field_res.raw_text,
+        )
+
+        # 2. Semantic Interpretation & Disambiguation
+        interpretation = semantic_extractor.disambiguate_interpretation(
+            field_name=field_name,
+            value=field_res.value,
+            raw_text=field_res.raw_text,
+        )
+
+        # 3. Readability Assessment
+        readability = layout_analyzer.assess_crop_readability(
+            image=image,
+            box=box,
+            raw_text=field_res.raw_text or "",
+            ocr_confidence=field_res.confidence,
+        )
+
+        # 4. Placement Assessment
+        mandated_pdp = field_name in ["product_name", "net_quantity"]
+        placement = layout_analyzer.assess_placement(
+            box=box,
+            panel=panel,
+            is_pdp=is_pdp,
+            mandated_on_pdp=mandated_pdp,
+        )
+
+        # Composite overall multimodal score
+        multimodal_score = round(
+            0.35 * completeness.completeness_score
+            + 0.35 * readability.readability_score
+            + 0.30 * interpretation.confidence,
+            2,
+        )
+
+        field_res.multimodal = MultimodalAssessment(
+            completeness=completeness,
+            readability=readability,
+            placement=placement,
+            interpretation=interpretation,
+            overall_multimodal_score=multimodal_score,
         )
 
     def _extract_product_name(

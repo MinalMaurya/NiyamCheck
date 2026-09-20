@@ -68,6 +68,9 @@ class EvidenceItem(BaseModel):
     bounding_box: Optional[BoundingBox] = Field(None, description="Localized bounding box if available")
     source: str = Field("ocr", description="Data source provider ('ocr', 'metadata', etc.)")
     panel: Optional[str] = Field("UNKNOWN", description="Package panel location (FRONT, BACK, etc.)")
+    layout_analysis: Optional[Dict[str, Any]] = Field(None, description="Spatial layout and PDP positioning metadata")
+    readability: Optional[Dict[str, Any]] = Field(None, description="Crop visual contrast and sharpness metrics")
+    semantic_role: Optional[str] = Field(None, description="Disambiguated statutory declaration role")
 
 
 class RuleEvidence(BaseModel):
@@ -80,6 +83,9 @@ class RuleEvidence(BaseModel):
     bounding_box: Optional[BoundingBox] = None
     confidence: float = Field(1.0, ge=0.0, le=1.0)
     panel: Optional[str] = "UNKNOWN"
+    layout_analysis: Optional[Dict[str, Any]] = None
+    readability: Optional[Dict[str, Any]] = None
+    semantic_role: Optional[str] = None
 
     def __eq__(self, other: Any) -> bool:
         if isinstance(other, str):

@@ -87,8 +87,8 @@ class AnalysisService:
         engine = get_ocr_engine(ocr_engine_name or self.ocr_engine_name)
         ocr_res = engine.extract_text(pil_image)
 
-        # 3. Structured Field Extraction
-        fields_res = field_extractor.extract(ocr_res, quality_res)
+        # 3. Structured Field Extraction with Multimodal Assessment
+        fields_res = field_extractor.extract(ocr_res, quality_res, image=pil_image, panel="UNKNOWN")
 
         # 4. Deterministic Legal Metrology Compliance Evaluation (Milestone 2)
         compliance_res = compliance_engine.evaluate(fields_res)
@@ -144,14 +144,12 @@ class AnalysisService:
             if hasattr(quality_res, "issues") and quality_res.issues is not None:
                 quality_res.issues.append(f"OCR extraction encountered an error: {str(ocr_exc)}")
 
-        # 3. Canonical Field Extraction
+        # 3. Canonical Field Extraction with Multimodal Assessment
+        panel_str = panel.value if isinstance(panel, PanelType) else str(panel)
         try:
-            fields_res = field_extractor.extract(ocr_res, quality_res)
+            fields_res = field_extractor.extract(ocr_res, quality_res, image=pil_image, panel=panel_str)
         except Exception:
             fields_res = ExtractedFields()
-
-        # Tag each field with panel and image_id for multi-image traceability
-        panel_str = panel.value if isinstance(panel, PanelType) else str(panel)
         for field_name in ("product_name", "manufacturer", "packer", "importer", "address", "net_quantity", "mrp", "date_information", "consumer_care", "country_of_origin"):
             f = getattr(fields_res, field_name, None)
             if f is not None:

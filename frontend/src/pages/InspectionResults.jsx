@@ -1149,6 +1149,21 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                                 Panel: {finding.package_panel}
                               </span>
                             )}
+                            {finding.completeness_status && (
+                              <span title="Statutory sub-element completeness" style={{ fontSize: '0.7rem', fontWeight: 600, color: finding.completeness_status === 'COMPLETE' ? '#34D399' : (finding.completeness_status === 'PARTIAL' ? '#FBBF24' : '#F87171'), backgroundColor: 'rgba(255, 255, 255, 0.06)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                                Completeness: {finding.completeness_status}
+                              </span>
+                            )}
+                            {finding.readability_status && (
+                              <span title="Visual clarity & contrast assessment" style={{ fontSize: '0.7rem', fontWeight: 600, color: finding.readability_status === 'CLEAR' ? '#34D399' : '#FBBF24', backgroundColor: 'rgba(255, 255, 255, 0.06)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                                Readability: {finding.readability_status}
+                              </span>
+                            )}
+                            {finding.placement_status && (
+                              <span title="Spatial layout placement" style={{ fontSize: '0.7rem', fontWeight: 600, color: finding.placement_status === 'COMPLIANT_PDP' ? '#60A5FA' : 'var(--text-secondary)', backgroundColor: 'rgba(255, 255, 255, 0.06)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                                Placement: {finding.placement_status === 'COMPLIANT_PDP' ? 'PDP' : finding.placement_status}
+                              </span>
+                            )}
                           </div>
                           <h3 className="finding-card-title">{finding.name}</h3>
                         </div>

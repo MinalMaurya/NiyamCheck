@@ -137,6 +137,69 @@ class PaddleEngine(BaseOCREngine):
         )
 
 
+class RapidOCREngine(BaseOCREngine):
+    """RapidOCR adapter using rapidocr_onnxruntime for fast, offline packaging OCR."""
+
+    def __init__(self):
+        try:
+            from rapidocr_onnxruntime import RapidOCR
+            self._engine = RapidOCR()
+            self._available = True
+        except (ImportError, Exception):
+            self._engine = None
+            self._available = False
+
+    @property
+    def name(self) -> str:
+        return "RapidOCR-ONNX"
+
+    @property
+    def is_available(self) -> bool:
+        return self._available
+
+    def extract_text(self, image: Image.Image) -> OCRResult:
+        if not self._available or self._engine is None:
+            raise RuntimeError("RapidOCR is not installed or failed to initialize.")
+
+        img_np = np.array(image.convert("RGB"))
+        height, width = img_np.shape[:2]
+        ocr_res, _ = self._engine(img_np)
+
+        regions: List[OCRRegion] = []
+        text_lines: List[str] = []
+        conf_sum = 0.0
+
+        if ocr_res:
+            for item in ocr_res:
+                points = item[0]
+                text = str(item[1]).strip()
+                conf = float(item[2])
+
+                xs = [p[0] for p in points]
+                ys = [p[1] for p in points]
+                ymin = max(0.0, min(ys) / height)
+                xmin = max(0.0, min(xs) / width)
+                ymax = min(1.0, max(ys) / height)
+                xmax = min(1.0, max(xs) / width)
+
+                regions.append(
+                    OCRRegion(
+                        text=text,
+                        confidence=round(conf, 2),
+                        box=[round(ymin, 4), round(xmin, 4), round(ymax, 4), round(xmax, 4)],
+                    )
+                )
+                text_lines.append(text)
+                conf_sum += conf
+
+        avg_conf = round(conf_sum / len(regions), 2) if regions else 0.0
+        return OCRResult(
+            text="\n".join(text_lines),
+            confidence=avg_conf,
+            regions=regions,
+        )
+
+
 class EmptyOCREngine(BaseOCREngine):
     """Fallback engine when no OCR backend is available. Never injects fake/stale text."""
 
@@ -155,11 +218,18 @@ class EmptyOCREngine(BaseOCREngine):
 def get_ocr_engine(engine_name: Optional[str] = None) -> BaseOCREngine:
     """
     Factory function returning a configured OCR engine.
-    Supports 'AUTO', 'APPLE_VISION', 'TESSERACT', 'PADDLE', or 'MOCK'.
-    In AUTO mode, prioritizes real OCR backends (Apple Vision on macOS, Tesseract, Paddle)
+    Supports 'AUTO', 'RAPIDOCR', 'APPLE_VISION', 'TESSERACT', 'PADDLE', or 'MOCK'.
+    In AUTO mode, prioritizes real OCR backends (Apple Vision, RapidOCR, Tesseract, Paddle)
     and never silently substitutes demo/mock data.
     """
     selected = (engine_name or settings.OCR_ENGINE).upper()
+
+    if selected in ["RAPIDOCR", "RAPID"]:
+        rapid = RapidOCREngine()
+        if rapid.is_available:
+            return rapid
+        logger.warning("RapidOCR requested but not available. Falling back to EmptyOCREngine.")
+        return EmptyOCREngine()
 
     if selected == "APPLE_VISION":
         try:
@@ -199,12 +269,17 @@ def get_ocr_engine(engine_name: Optional[str] = None) -> BaseOCREngine:
         except Exception as exc:
             logger.debug(f"AppleVisionEngine check: {exc}")
 
-        # 2. Tesseract OCR
+        # 2. RapidOCR ONNX (cross-platform, fast local inference)
+        rapid = RapidOCREngine()
+        if rapid.is_available:
+            return rapid
+
+        # 3. Tesseract OCR
         tess = TesseractEngine()
         if tess.is_available:
             return tess
 
-        # 3. Paddle OCR
+        # 4. Paddle OCR
         paddle = PaddleEngine()
         if paddle.is_available:
             return paddle

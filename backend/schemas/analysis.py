@@ -50,6 +50,58 @@ class OCRResult(BaseModel):
     regions: List[OCRRegion] = Field(default_factory=list, description="Extracted text regions with bounding boxes")
 
 
+# --- Multimodal Assessment Schemas Addressing the Packaging Research Gap ---
+
+class CompletenessAssessment(BaseModel):
+    """Evaluates whether all statutory sub-elements of a declaration are present."""
+    is_complete: bool = True
+    completeness_score: float = Field(1.0, ge=0.0, le=1.0)
+    missing_components: List[str] = Field(default_factory=list)
+    present_components: List[str] = Field(default_factory=list)
+    details: Optional[Dict[str, Any]] = None
+
+
+class ReadabilityAssessment(BaseModel):
+    """Evaluates local visual clarity, contrast, and text height on the declaration crop."""
+    is_readable: bool = True
+    readability_score: float = Field(1.0, ge=0.0, le=1.0)
+    local_contrast: float = 0.0
+    blur_score: float = 0.0
+    estimated_font_height_ratio: float = 0.0
+    is_distorted: bool = False
+    details: Optional[Dict[str, Any]] = None
+
+
+class PlacementAssessment(BaseModel):
+    """Evaluates spatial placement compliance (e.g. Principal Display Panel, grouping)."""
+    is_appropriately_placed: Optional[bool] = None
+    panel: str = "UNKNOWN"
+    is_on_pdp: bool = False
+    layout_zone: str = "BODY"  # HEADER, BODY, FOOTER, CRIMPS
+    grouping_verified: bool = True
+    details: Optional[Dict[str, Any]] = None
+
+
+class InterpretationAssessment(BaseModel):
+    """Evaluates semantic disambiguation from competing text (nutritional tables, multiple dates)."""
+    is_correctly_interpreted: bool = True
+    disambiguation_type: str = "STANDARD"
+    confidence: float = Field(1.0, ge=0.0, le=1.0)
+    notes: Optional[str] = None
+
+
+class MultimodalAssessment(BaseModel):
+    """
+    Unified multimodal verification package combining completeness,
+    readability, placement, and semantic interpretation.
+    """
+    completeness: CompletenessAssessment = Field(default_factory=CompletenessAssessment)
+    readability: ReadabilityAssessment = Field(default_factory=ReadabilityAssessment)
+    placement: PlacementAssessment = Field(default_factory=PlacementAssessment)
+    interpretation: InterpretationAssessment = Field(default_factory=InterpretationAssessment)
+    overall_multimodal_score: float = Field(1.0, ge=0.0, le=1.0)
+
+
 T = TypeVar("T")
 
 
@@ -62,6 +114,10 @@ class FieldResult(BaseModel, Generic[T]):
     source_image_id: Optional[str] = Field(None, description="Image ID where value was primarily detected")
     additional_sources: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Other panels where same value was observed")
     conflicts: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Conflicting values detected across different panels")
+    # Multimodal assessment addressing the packaging compliance research gap
+    multimodal: Optional[MultimodalAssessment] = Field(
+        None, description="Multimodal evaluation: completeness, readability, placement, and semantic interpretation"
+    )
 
 
 class ExtractedFields(BaseModel):
@@ -96,4 +152,3 @@ class ImageAnalysisResponse(BaseModel):
     evidence: List[EvidenceItem] = Field(
         default_factory=list, description="Extracted visual evidence bounding regions (Milestone 3)"
     )
-

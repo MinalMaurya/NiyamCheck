@@ -237,9 +237,11 @@ class PDFReportGenerator:
                 d2.text((70, y2 + 86), "• Additional Panels:", fill=(24, 134, 75))
                 d2.text((220, y2 + 86), f"Also detected on: {also}"[:85], fill=(24, 134, 75))
             else:
-                why_flagged = f.get("why_flagged") or f.get("explanation") or ""
-                d2.text((70, y2 + 86), "• Assessment:", fill=(60, 60, 60))
-                d2.text((220, y2 + 86), why_flagged[:85], fill=(40, 40, 40))
+                comp_st = f.get("completeness_status") or "COMPLETE"
+                read_st = f.get("readability_status") or "CLEAR"
+                place_st = f.get("placement_status") or "COMPLIANT_PDP"
+                d2.text((70, y2 + 86), "• Multimodal Audit:", fill=(60, 60, 60))
+                d2.text((220, y2 + 86), f"Completeness: {comp_st} | Readability: {read_st} | Placement: {place_st}"[:85], fill=(30, 41, 59))
 
             # Action / What to verify
             action_text = f.get("what_can_i_do") or "Verify on physical package."

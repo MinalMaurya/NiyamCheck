@@ -87,6 +87,68 @@ export function Dashboard({ onNavigate, onOpenInspection, onLoadDemo }) {
         </div>
       )}
 
+      <div className="card" style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display: 'grid', gap: '1.25rem' }}>
+          <div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.7rem', borderRadius: '999px', background: 'rgba(96, 165, 250, 0.12)', border: '1px solid rgba(96, 165, 250, 0.25)', color: '#93C5FD', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              Research Gap
+            </div>
+            <h2 style={{ marginTop: '0.9rem', marginBottom: '0.6rem', fontSize: '1.5rem', color: 'var(--text-primary)' }}>
+              Why OCR alone is not enough for packaged commodity compliance
+            </h2>
+            <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+              A real packaging declaration is not just a string of text. It sits inside a visually complex package: curved surfaces,
+              small or distorted fonts, competing numbers, branding, and context-rich legal information. In such environments, OCR
+              can detect text but cannot reliably determine whether a declaration is complete, correctly interpreted, readable,
+              placed on the correct panel, or compliant with the law.
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+            {[
+              {
+                title: 'Complex Visual Layouts',
+                text: 'Declarations are spread across the principal display panel, side panels, folds, seams, and curved surfaces.',
+              },
+              {
+                title: 'Small / Distorted Text',
+                text: 'Font sizes may be tiny, reflective, or affected by glare, shadows, and package geometry.',
+              },
+              {
+                title: 'Ambiguous Context',
+                text: 'MRP, manufacturing dates, batch numbers, and country labels often compete with one another in the same visual field.',
+              },
+              {
+                title: 'Placement & Legal Sufficiency',
+                text: 'The law is not only about presence; it is also about correct placement, grouping, and statutory interpretation.',
+              },
+            ].map((item) => (
+              <div key={item.title} style={{ padding: '1rem 1.05rem', borderRadius: 'var(--radius-md)', background: 'rgba(15, 23, 42, 0.45)', border: '1px solid rgba(148, 163, 184, 0.18)' }}>
+                <h3 style={{ margin: '0 0 0.5rem', fontSize: '0.96rem', color: 'var(--text-primary)' }}>{item.title}</h3>
+                <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '0.88rem' }}>{item.text}</p>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'grid', gap: '0.9rem', padding: '1rem 1.1rem', borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg, rgba(14, 116, 144, 0.14), rgba(59, 130, 246, 0.08))', border: '1px solid rgba(96, 165, 250, 0.2)' }}>
+            <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Multimodal framework required</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.8rem' }}>
+              {[
+                'OCR text detection and bounding-box extraction',
+                'Visual and layout analysis of package geometry',
+                'Semantic interpretation and disambiguation',
+                'Rule-based legal reasoning and compliance checks',
+                'Evidence mapping with placement and readability metrics',
+              ].map((step) => (
+                <div key={step} style={{ padding: '0.75rem 0.85rem', borderRadius: '12px', background: 'rgba(15, 23, 42, 0.42)', border: '1px solid rgba(148, 163, 184, 0.16)', color: 'var(--text-primary)', fontSize: '0.82rem', lineHeight: 1.5 }}>
+                  {step}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Analytics Metric Cards (Derived from real inspections) */}
       <div className="metrics-grid">
         <div className="metric-card" style={{ borderLeft: '4px solid var(--status-neutral-border)' }}>
