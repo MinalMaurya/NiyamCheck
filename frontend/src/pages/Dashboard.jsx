@@ -97,30 +97,29 @@ export function Dashboard({ onNavigate, onOpenInspection, onLoadDemo }) {
               Why OCR alone is not enough for packaged commodity compliance
             </h2>
             <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
-              A real packaging declaration is not just a string of text. It sits inside a visually complex package: curved surfaces,
-              small or distorted fonts, competing numbers, branding, and context-rich legal information. In such environments, OCR
-              can detect text but cannot reliably determine whether a declaration is complete, correctly interpreted, readable,
-              placed on the correct panel, or compliant with the law.
+              OCR can read text, but packaged goods are visually complex. Declarations may be small, distorted, curved, or placed
+              across multiple panels. Without layout, context, and legal checks, the system cannot reliably decide whether a label is
+              complete, readable, correctly positioned, and compliant.
             </p>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
             {[
               {
-                title: 'Complex Visual Layouts',
-                text: 'Declarations are spread across the principal display panel, side panels, folds, seams, and curved surfaces.',
+                title: 'Complex packaging',
+                text: 'Labels are spread across panels, folds, curves, and surfaces, not just one flat area.',
               },
               {
-                title: 'Small / Distorted Text',
-                text: 'Font sizes may be tiny, reflective, or affected by glare, shadows, and package geometry.',
+                title: 'Small or unclear text',
+                text: 'Fonts may be tiny, reflective, or distorted by glare, shadows, and packaging shape.',
               },
               {
-                title: 'Ambiguous Context',
-                text: 'MRP, manufacturing dates, batch numbers, and country labels often compete with one another in the same visual field.',
+                title: 'Confusing context',
+                text: 'MRP, dates, batch codes, and brand details often appear close together and can be mistaken.',
               },
               {
-                title: 'Placement & Legal Sufficiency',
-                text: 'The law is not only about presence; it is also about correct placement, grouping, and statutory interpretation.',
+                title: 'Legal placement matters',
+                text: 'A declaration must be correct, visible, and placed according to the rules—not just present somewhere.',
               },
             ].map((item) => (
               <div key={item.title} style={{ padding: '1rem 1.05rem', borderRadius: 'var(--radius-md)', background: 'rgba(15, 23, 42, 0.45)', border: '1px solid rgba(148, 163, 184, 0.18)' }}>
@@ -131,17 +130,16 @@ export function Dashboard({ onNavigate, onOpenInspection, onLoadDemo }) {
           </div>
 
           <div style={{ display: 'grid', gap: '0.9rem', padding: '1rem 1.1rem', borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg, rgba(14, 116, 144, 0.14), rgba(59, 130, 246, 0.08))', border: '1px solid rgba(96, 165, 250, 0.2)' }}>
-            <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Multimodal framework required</h3>
+            <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>3-step multimodal workflow</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.8rem' }}>
               {[
-                'OCR text detection and bounding-box extraction',
-                'Visual and layout analysis of package geometry',
-                'Semantic interpretation and disambiguation',
-                'Rule-based legal reasoning and compliance checks',
-                'Evidence mapping with placement and readability metrics',
+                { title: '1. Capture', text: 'Analyze the package image and panel layout in context.' },
+                { title: '2. Interpret', text: 'Detect, disambiguate, and validate declarations against packaging geometry.' },
+                { title: '3. Verify', text: 'Check statutory placement, readability, and legal compliance with evidence.' },
               ].map((step) => (
-                <div key={step} style={{ padding: '0.75rem 0.85rem', borderRadius: '12px', background: 'rgba(15, 23, 42, 0.42)', border: '1px solid rgba(148, 163, 184, 0.16)', color: 'var(--text-primary)', fontSize: '0.82rem', lineHeight: 1.5 }}>
-                  {step}
+                <div key={step.title} style={{ padding: '0.85rem 0.9rem', borderRadius: '12px', background: 'rgba(15, 23, 42, 0.42)', border: '1px solid rgba(148, 163, 184, 0.16)', color: 'var(--text-primary)', fontSize: '0.82rem', lineHeight: 1.5 }}>
+                  <div style={{ fontWeight: 700, color: '#93C5FD', marginBottom: '0.3rem' }}>{step.title}</div>
+                  <div>{step.text}</div>
                 </div>
               ))}
             </div>
