@@ -90,9 +90,9 @@ export function Dashboard({ onNavigate, onOpenInspection, onLoadDemo }) {
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'grid', gap: '1.25rem' }}>
           <div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.7rem', borderRadius: '999px', background: 'rgba(96, 165, 250, 0.12)', border: '1px solid rgba(96, 165, 250, 0.25)', color: '#93C5FD', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            {/* <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.7rem', borderRadius: '999px', background: 'rgba(96, 165, 250, 0.12)', border: '1px solid rgba(96, 165, 250, 0.25)', color: '#93C5FD', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               Research Gap
-            </div>
+            </div> */}
             <h2 style={{ marginTop: '0.9rem', marginBottom: '0.6rem', fontSize: '1.5rem', color: 'var(--text-primary)' }}>
               Why OCR alone is not enough for packaged commodity compliance
             </h2>
