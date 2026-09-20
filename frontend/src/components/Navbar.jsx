@@ -73,10 +73,10 @@ export function Navbar({
           <div className="brand-title-wrap">
             <div className="brand-name">
               <span>NiyamCheck</span>
-              <span style={{ fontSize: '0.85rem', color: '#93C5FD', fontWeight: 500 }}>नियमचेक</span>
-              <span className="brand-sih-badge">SIH26034</span>
+              {/* <span style={{ fontSize: '0.85rem', color: '#93C5FD', fontWeight: 500 }}>नियमचेक</span> */}
+              {/* <span className="brand-sih-badge">SIH26034</span> */}
             </div>
-            <div className="brand-subtitle">Legal Metrology Compliance &bull; CodeHexa</div>
+            {/* <div className="brand-subtitle">Legal Metrology Compliance &bull; CodeHexa</div> */}
           </div>
         </div>
 
