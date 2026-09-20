@@ -11,10 +11,16 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
+from backend.database import init_db
 from backend.exceptions import InspectionStageError
 from backend.api.v1.analyze import router as analyze_router
 from backend.api.v1.inspections import router as inspections_router
 from backend.api.v1.legal import router as legal_router
+
+try:
+    init_db()
+except Exception as exc:  # pragma: no cover - infrastructure-dependent startup behavior
+    print(f"Database initialization warning: {exc}")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

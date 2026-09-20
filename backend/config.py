@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     # File Upload Security: 25 MB max per image
     MAX_UPLOAD_SIZE_BYTES: int = 25 * 1024 * 1024
 
+    # Database configuration.
+    # The default local setup uses SQLite so the app runs reliably in standard developer environments.
+    # Set DATABASE_URL to a PostgreSQL URL in production or on a Postgres-enabled machine.
+    DATABASE_URL: str = "sqlite:///./niyamcheck.db"
+    DATABASE_ECHO: bool = False
+
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env", extra="ignore")
 
 

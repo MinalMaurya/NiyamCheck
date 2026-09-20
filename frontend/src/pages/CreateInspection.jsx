@@ -419,10 +419,11 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
                   <strong style={{ fontSize: '0.85rem' }}>{d.title}</strong>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     {d.images?.length || 0} panels &bull; Updated{' '}
-                    {new Date(d.updatedAt).toLocaleTimeString('en-IN', {
+                    {new Intl.DateTimeFormat('en-IN', {
+                      timeZone: 'Asia/Kolkata',
                       hour: '2-digit',
                       minute: '2-digit',
-                    })}
+                    }).format(new Date(d.updatedAt))}
                   </div>
                 </div>
 

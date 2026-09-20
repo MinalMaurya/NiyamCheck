@@ -156,10 +156,11 @@ export function History({ onOpenInspection, onNavigate }) {
                 {filtered.map((session) => {
                   const prodName = session.combined_fields?.product_name?.value || 'Unidentified Commodity';
                   const dateStr = session.created_at
-                    ? new Date(session.created_at).toLocaleString('en-IN', {
+                    ? new Intl.DateTimeFormat('en-IN', {
+                        timeZone: 'Asia/Kolkata',
                         dateStyle: 'medium',
                         timeStyle: 'short',
-                      })
+                      }).format(new Date(session.created_at))
                     : 'N/A';
 
                   return (
