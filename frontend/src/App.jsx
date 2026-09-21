@@ -23,12 +23,12 @@ export function App() {
   const [isSystemInfoOpen, setIsSystemInfoOpen] = useState(false);
   const [isInstallAppOpen, setIsInstallAppOpen] = useState(false);
 
-  // Theme Management (Default: 'dark')
+  // Theme Management (Default: 'light')
   const [theme, setTheme] = useState(() => {
     try {
-      return localStorage.getItem('niyamcheck_theme') || 'dark';
+      return localStorage.getItem('niyamcheck_theme') || 'light';
     } catch {
-      return 'dark';
+      return 'light';
     }
   });
 

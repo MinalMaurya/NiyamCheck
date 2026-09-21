@@ -55,17 +55,17 @@ export function History({ onOpenInspection, onNavigate }) {
         <div
           style={{
             padding: '1rem',
-            backgroundColor: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
+            backgroundColor: 'var(--status-fail-bg)',
+            border: '1px solid var(--status-fail-border)',
             borderRadius: 'var(--radius-md)',
-            color: '#FCA5A5',
+            color: 'var(--status-fail-text)',
             marginBottom: '1.5rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
           }}
         >
-          <AlertCircle size={18} style={{ color: '#EF4444' }} />
+          <AlertCircle size={18} style={{ color: 'var(--status-fail)' }} />
           <span>{error}</span>
         </div>
       )}
@@ -178,7 +178,9 @@ export function History({ onOpenInspection, onNavigate }) {
                         <span
                           style={{
                             padding: '0.15rem 0.5rem',
-                            backgroundColor: 'rgba(55, 65, 81, 0.5)',
+                            backgroundColor: 'var(--bg-surface-elevated)',
+                            color: 'var(--text-secondary)',
+                            border: '1px solid var(--border-subtle)',
                             borderRadius: '4px',
                             fontSize: '0.75rem',
                             fontFamily: 'var(--font-mono)',

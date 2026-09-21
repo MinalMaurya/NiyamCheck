@@ -7,7 +7,7 @@ export function LegalBasisCard({ legalBasis = [] }) {
       <div
         style={{
           padding: '1rem',
-          backgroundColor: 'rgba(55, 65, 81, 0.25)',
+          backgroundColor: 'var(--bg-surface)',
           borderRadius: 'var(--radius-md)',
           border: '1px dashed var(--border-default)',
           color: 'var(--text-muted)',
@@ -99,9 +99,9 @@ export function LegalBasisCard({ legalBasis = [] }) {
                 style={{
                   marginTop: '0.5rem',
                   padding: '0.65rem 0.85rem',
-                  backgroundColor: 'rgba(17, 24, 39, 0.7)',
+                  backgroundColor: 'var(--bg-surface)',
                   borderRadius: 'var(--radius-sm)',
-                  borderLeft: '3px solid #3B82F6',
+                  borderLeft: '3px solid var(--status-info)',
                   fontStyle: 'italic',
                   color: 'var(--text-secondary)',
                   fontSize: '0.8rem',

@@ -20,6 +20,7 @@ import { createInspection } from '../api/inspections';
 import { createDemoPackageFiles } from '../api/sampleData';
 import { draftStore } from '../storage/draftStore';
 import { validateImageFile, optimizeImageForUpload } from '../utils/imageUtils';
+import { InspectionCoverageCard } from '../components/InspectionCoverageCard';
 
 const PANEL_OPTIONS = [
   { value: 'FRONT', label: 'Front Panel (Principal Display)' },
@@ -44,6 +45,7 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const submissionLockRef = useRef(false);
+  const targetPanelRef = useRef(null);
 
   useEffect(() => {
     loadSavedDrafts();
@@ -75,13 +77,15 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
       // Optimize excessively large phone camera photos (preserves aspect ratio & OCR sharpness)
       const file = await optimizeImageForUpload(originalFile);
 
-      // Guess panel based on existing panels
-      let defaultPanel = 'FRONT';
-      const existingPanels = images.map((img) => img.panel);
-      if (existingPanels.includes('FRONT') && !existingPanels.includes('BACK')) {
-        defaultPanel = 'BACK';
-      } else if (existingPanels.includes('BACK')) {
-        defaultPanel = 'OTHER';
+      // Determine default panel based on targeted panel or existing panels
+      let defaultPanel = targetPanelRef.current;
+      targetPanelRef.current = null;
+
+      if (!defaultPanel) {
+        const currentPanels = [...images.map((img) => img.panel), ...newItems.map((img) => img.panel)];
+        const standardOrder = ['FRONT', 'BACK', 'LEFT', 'RIGHT', 'TOP', 'BOTTOM'];
+        const missing = standardOrder.find((p) => !currentPanels.includes(p));
+        defaultPanel = missing || 'OTHER';
       }
 
       newItems.push({
@@ -94,6 +98,11 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
     }
 
     setImages((prev) => [...prev, ...newItems]);
+  };
+
+  const handleAddSpecificPanel = (panelId) => {
+    targetPanelRef.current = panelId;
+    fileInputRef.current?.click();
   };
 
   const handleDrop = (e) => {
@@ -320,10 +329,10 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
         <div
           style={{
             padding: '0.75rem 1rem',
-            backgroundColor: 'rgba(16, 185, 129, 0.15)',
-            border: '1px solid #10B981',
+            backgroundColor: 'var(--status-pass-bg)',
+            border: '1px solid var(--status-pass-border)',
             borderRadius: 'var(--radius-md)',
-            color: '#34D399',
+            color: 'var(--status-pass-text)',
             marginBottom: '1rem',
             display: 'flex',
             alignItems: 'center',
@@ -341,15 +350,15 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
         <div
           style={{
             padding: '1rem 1.25rem',
-            backgroundColor: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
+            backgroundColor: 'var(--status-fail-bg)',
+            border: '1px solid var(--status-fail-border)',
             borderRadius: 'var(--radius-md)',
-            color: '#FCA5A5',
+            color: 'var(--status-fail-text)',
             marginBottom: '1.5rem',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
-            <AlertCircle size={20} style={{ color: '#EF4444', flexShrink: 0 }} />
+            <AlertCircle size={20} style={{ color: 'var(--status-fail)', flexShrink: 0 }} />
             <span style={{ fontSize: '0.9rem' }}>{error}</span>
           </div>
 
@@ -556,6 +565,13 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
             </div>
           </div>
 
+          {/* Inspection Coverage Live Monitor */}
+          <InspectionCoverageCard
+            images={images}
+            onAddPanel={handleAddSpecificPanel}
+            interactive={true}
+          />
+
           {/* Uploaded / Captured Image Cards */}
           {images.length > 0 && (
             <div>
@@ -604,7 +620,7 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
                     <div
                       style={{
                         height: '180px',
-                        backgroundColor: '#0F172A',
+                        backgroundColor: 'var(--bg-canvas)',
                         borderRadius: 'var(--radius-sm)',
                         overflow: 'hidden',
                         display: 'flex',

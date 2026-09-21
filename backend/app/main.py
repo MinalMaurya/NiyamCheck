@@ -1,3 +1,5 @@
+import os
+import socket
 import sys
 from pathlib import Path
 
@@ -87,6 +89,29 @@ async def root():
     }
 
 
+def get_available_port(default_port: int = 8000):
+    """Return a free local port, honoring PORT if explicitly set."""
+    env_port = os.getenv("PORT")
+    if env_port:
+        try:
+            return int(env_port)
+        except ValueError:
+            pass
+
+    for port in (default_port, 8001, 8002, 8080, 5000):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind(("0.0.0.0", port))
+                return port
+            except OSError:
+                continue
+
+    return default_port
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("backend.app.main:app", host="0.0.0.0", port=8000, reload=True)
+    port = get_available_port()
+    print(f"Starting backend on port {port}")
+    uvicorn.run("backend.app.main:app", host="0.0.0.0", port=port, reload=True)

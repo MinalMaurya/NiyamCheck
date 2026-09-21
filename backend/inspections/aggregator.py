@@ -7,6 +7,11 @@ from backend.compliance.rule_engine import compliance_engine
 from backend.compliance.category_detector import product_category_detector
 from backend.evidence.models import EvidenceItem
 from backend.inspections.models import InspectionImage, InspectionSession, PanelType
+from backend.inspections.coverage import (
+    compute_inspection_coverage,
+    is_rule_panel_captured,
+    get_expected_panel_description,
+)
 
 
 class SessionAggregator:
@@ -38,6 +43,7 @@ class SessionAggregator:
         if not images:
             empty_fields = ExtractedFields()
             empty_comp = compliance_engine.evaluate(empty_fields)
+            empty_coverage = compute_inspection_coverage([])
             return InspectionSession(
                 inspection_id=session_id,
                 created_at=datetime.utcnow(),
@@ -47,6 +53,7 @@ class SessionAggregator:
                 evidence=[],
                 status=ComplianceStatus.NOT_VERIFIABLE,
                 summary="No images submitted for inspection.",
+                coverage=empty_coverage,
             )
 
         # 1. Aggregate fields deterministically
@@ -78,6 +85,13 @@ class SessionAggregator:
         is_single_panel = len(images) == 1
         single_panel_name = images[0].panel.value if images and hasattr(images[0].panel, "value") else (str(images[0].panel) if images else "UNKNOWN")
 
+        # Compute empirical 6-panel coverage
+        coverage = compute_inspection_coverage(images)
+        captured_panel_types = {
+            img.panel for img in images
+            if img.panel and img.panel != PanelType.UNKNOWN
+        }
+
         # 5. Link rule evaluations in combined_compliance to their respective evidence item & enrich
         for ev in combined_compliance.evaluations:
             f_obj = getattr(combined_fields, ev.field, None)
@@ -96,8 +110,38 @@ class SessionAggregator:
                     panel=best_item.panel,
                 )
                 ev.package_panel = best_item.panel or single_panel_name
+            elif f_obj and (f_obj.value or f_obj.raw_text):
+                from backend.evidence.models import RuleEvidence, EvidenceItem
+                source_img = f_obj.source_image_id
+                if not source_img and images:
+                    matched_img = next((img for img in images if img.panel and f_obj.source_panel and (img.panel.value == f_obj.source_panel or str(img.panel) == f_obj.source_panel)), None)
+                    source_img = matched_img.image_id if matched_img else images[0].image_id
+                source_pnl = f_obj.source_panel or single_panel_name
+                txt = f_obj.raw_text or f_obj.value
+                ev.evidence = RuleEvidence(
+                    text=txt,
+                    image_id=source_img,
+                    bounding_box=None,
+                    confidence=f_obj.confidence or 0.85,
+                    panel=source_pnl,
+                )
+                ev.package_panel = source_pnl
+                if source_img:
+                    all_evidence.append(
+                        EvidenceItem(
+                            evidence_id=f"ev-{source_img}-{ev.field}",
+                            image_id=source_img,
+                            rule_id=ev.rule_id,
+                            field=ev.field,
+                            text=txt,
+                            confidence=f_obj.confidence or 0.85,
+                            bounding_box=None,
+                            source="ocr",
+                            panel=source_pnl,
+                        )
+                    )
             else:
-                ev.package_panel = single_panel_name
+                ev.package_panel = (f_obj.source_panel if f_obj and f_obj.source_panel else single_panel_name)
 
             # Check if this field had conflicting declarations across panels
             if f_obj and f_obj.conflicts:
@@ -120,41 +164,96 @@ class SessionAggregator:
             # Evaluation Status refinement: "Not Detected ≠ Violation"
             # When a declaration was NOT detected in the submitted images:
             if not ev.detected_value:
+                panel_captured = is_rule_panel_captured(ev.rule_id, captured_panel_types)
+                expected_desc = get_expected_panel_description(ev.rule_id)
+
                 if is_single_panel:
                     # Single package panel: declaration may reside on another unphotographed panel
                     ev.status = RuleStatus.REVIEW
-                    ev.reason = (
-                        f"The required declaration was not detected in the submitted image. "
-                        f"Only one package panel was submitted ({single_panel_name}). "
-                        f"Declarations may be located on other packaging panels."
-                    )
-                    ev.why_flagged = f"Declaration could not be verified with certainty. Only one package panel was submitted ({single_panel_name})."
+                    if not panel_captured:
+                        ev.reason = (
+                            f"Unable to verify from captured evidence because the relevant package panel was not captured. "
+                            f"Only one package panel was submitted ({single_panel_name}). "
+                            f"Declarations may be located on other packaging panels."
+                        )
+                        ev.why_flagged = "Unable to verify from captured evidence because the relevant package panel was not captured."
+                    else:
+                        ev.reason = (
+                            f"The required declaration was not detected in the submitted image. "
+                            f"Only one package panel was submitted ({single_panel_name}). "
+                            f"Declarations may be located on other packaging panels or obscured."
+                        )
+                        ev.why_flagged = f"Declaration could not be verified with certainty. Only one package panel was submitted ({single_panel_name})."
+                    # Field-specific consumer actionable next steps
+                    if ev.field == "mrp" or ev.rule_id == "LM-MRP-001":
+                        ev.what_can_i_do = "Check the MRP printed on all package panels. Compare it with the value detected by NiyamCheck. Keep your purchase bill and packaging photo. You may consult the relevant official grievance mechanism if the issue remains unresolved."
+                    elif ev.field == "consumer_care" or ev.rule_id == "LM-CARE-001":
+                        ev.what_can_i_do = "Check the remaining package panels. Upload a clearer image if necessary. Look for customer-care phone/email/address information. Re-run the inspection with the missing panel."
+                    elif ev.field == "net_quantity" or ev.rule_id == "LM-NQ-001":
+                        ev.what_can_i_do = "Check the principal display panel or lower right corner of the packaging for net quantity in metric units (g, kg, ml, l) or count. Re-run the inspection with any missing panels."
+                    elif ev.field == "product_name" or ev.rule_id == "LM-PN-001":
+                        ev.what_can_i_do = "Check the front panel or main packaging face to locate the generic commodity name. Re-run the inspection with the front panel captured."
+                    elif ev.field in ("manufacturer", "address") or ev.rule_id in ("LM-MFG-001", "LM-ADDR-001"):
+                        ev.what_can_i_do = "Inspect the back, side, or bottom panels for responsible manufacturer or packer name, complete postal address, and PIN code."
+                    elif ev.field == "date_information" or ev.rule_id == "LM-DATE-001":
+                        ev.what_can_i_do = "Check near the packaging crimp, seal, or bottom face for dot-matrix stamped month and year of manufacture or packaging."
+                    elif ev.field == "country_of_origin" or ev.rule_id == "LM-COO-001":
+                        ev.what_can_i_do = "Look for 'Made in [Country]', 'Product of [Country]', or explicit country declaration printed on the physical packaging."
+                    else:
+                        ev.what_can_i_do = "Check the remaining sides of the package or upload clearer images under direct lighting."
+                elif not panel_captured:
+                    # 1. Package panel was never captured, so declaration cannot confidently be verified
+                    ev.status = RuleStatus.NOT_VERIFIABLE
+                    ev.reason = "Unable to verify from captured evidence because the relevant package panel was not captured."
+                    ev.why_flagged = "Unable to verify from captured evidence because the relevant package panel was not captured."
+                    ev.what_can_i_do = f"Capture and upload the {expected_desc} to enable verification of this declaration. NiyamCheck does not treat missing panels as violations."
+                elif coverage.is_complete:
+                    # 2. All 6 panels were captured and checked, but mandatory declaration was still not found
+                    ev.status = RuleStatus.POTENTIAL_ISSUE
+                    ev.reason = f"All 6 packaging panels were captured and examined, but {ev.name} was not found on any panel."
+                    ev.why_flagged = f"The mandatory {ev.name} declaration was not observed anywhere across complete 6-panel packaging evidence."
+                    ev.what_can_i_do = f"Check physical packaging to confirm whether {ev.name} is printed. If completely absent, this is a potential statutory non-compliance."
+                    # Field-specific consumer actionable next steps
+                    if ev.field == "mrp" or ev.rule_id == "LM-MRP-001":
+                        ev.what_can_i_do = "Check the MRP printed on all package panels. Compare it with the value detected by NiyamCheck. Keep your purchase bill and packaging photo. You may consult the relevant official grievance mechanism if the issue remains unresolved."
+                    elif ev.field == "consumer_care" or ev.rule_id == "LM-CARE-001":
+                        ev.what_can_i_do = "Check the remaining package panels. Upload a clearer image if necessary. Look for customer-care phone/email/address information. Re-run the inspection with the missing panel."
+                    elif ev.field == "net_quantity" or ev.rule_id == "LM-NQ-001":
+                        ev.what_can_i_do = "Check the principal display panel or lower right corner of the packaging for net quantity in metric units (g, kg, ml, l) or count. Re-run the inspection with any missing panels."
+                    elif ev.field == "product_name" or ev.rule_id == "LM-PN-001":
+                        ev.what_can_i_do = "Check the front panel or main packaging face to locate the generic commodity name. Re-run the inspection with the front panel captured."
+                    elif ev.field in ("manufacturer", "address") or ev.rule_id in ("LM-MFG-001", "LM-ADDR-001"):
+                        ev.what_can_i_do = "Inspect the back, side, or bottom panels for responsible manufacturer or packer name, complete postal address, and PIN code."
+                    elif ev.field == "date_information" or ev.rule_id == "LM-DATE-001":
+                        ev.what_can_i_do = "Check near the packaging crimp, seal, or bottom face for dot-matrix stamped month and year of manufacture or packaging."
+                    elif ev.field == "country_of_origin" or ev.rule_id == "LM-COO-001":
+                        ev.what_can_i_do = "Look for 'Made in [Country]', 'Product of [Country]', or explicit country declaration printed on the physical packaging."
+                    else:
+                        ev.what_can_i_do = "Check the remaining sides of the package or upload clearer images under direct lighting."
                 else:
-                    # Multi-panel: declaration could not be established from the submitted views
+                    # 4. Multi-panel: expected panel was captured, but declaration was not detected
                     ev.status = RuleStatus.NOT_VERIFIABLE
                     ev.reason = (
                         f"The required declaration was not detected in the submitted package panel(s). "
                         f"This declaration cannot be verified without physical inspection of all package panels."
                     )
                     ev.why_flagged = "The applicable requirement expects this information, but NiyamCheck could not find sufficient evidence in the submitted images."
-
-                # Field-specific consumer actionable next steps
-                if ev.field == "mrp" or ev.rule_id == "LM-MRP-001":
-                    ev.what_can_i_do = "Check the MRP printed on all package panels. Compare it with the value detected by NiyamCheck. Keep your purchase bill and packaging photo. You may consult the relevant official grievance mechanism if the issue remains unresolved."
-                elif ev.field == "consumer_care" or ev.rule_id == "LM-CARE-001":
-                    ev.what_can_i_do = "Check the remaining package panels. Upload a clearer image if necessary. Look for customer-care phone/email/address information. Re-run the inspection with the missing panel."
-                elif ev.field == "net_quantity" or ev.rule_id == "LM-NQ-001":
-                    ev.what_can_i_do = "Check the principal display panel or lower right corner of the packaging for net quantity in metric units (g, kg, ml, l) or count. Re-run the inspection with any missing panels."
-                elif ev.field == "product_name" or ev.rule_id == "LM-PN-001":
-                    ev.what_can_i_do = "Check the front panel or main packaging face to locate the generic commodity name. Re-run the inspection with the front panel captured."
-                elif ev.field in ("manufacturer", "address") or ev.rule_id in ("LM-MFG-001", "LM-ADDR-001"):
-                    ev.what_can_i_do = "Inspect the back, side, or bottom panels for responsible manufacturer or packer name, complete postal address, and PIN code."
-                elif ev.field == "date_information" or ev.rule_id == "LM-DATE-001":
-                    ev.what_can_i_do = "Check near the packaging crimp, seal, or bottom face for dot-matrix stamped month and year of manufacture or packaging."
-                elif ev.field == "country_of_origin" or ev.rule_id == "LM-COO-001":
-                    ev.what_can_i_do = "Look for 'Made in [Country]', 'Product of [Country]', or explicit country declaration printed on the physical packaging."
-                else:
-                    ev.what_can_i_do = "Check the remaining sides of the package or upload clearer images under direct lighting."
+                    if ev.field == "mrp" or ev.rule_id == "LM-MRP-001":
+                        ev.what_can_i_do = "Check the MRP printed on all package panels. Compare it with the value detected by NiyamCheck. Keep your purchase bill and packaging photo. You may consult the relevant official grievance mechanism if the issue remains unresolved."
+                    elif ev.field == "consumer_care" or ev.rule_id == "LM-CARE-001":
+                        ev.what_can_i_do = "Check the remaining package panels. Upload a clearer image if necessary. Look for customer-care phone/email/address information. Re-run the inspection with the missing panel."
+                    elif ev.field == "net_quantity" or ev.rule_id == "LM-NQ-001":
+                        ev.what_can_i_do = "Check the principal display panel or lower right corner of the packaging for net quantity in metric units (g, kg, ml, l) or count. Re-run the inspection with any missing panels."
+                    elif ev.field == "product_name" or ev.rule_id == "LM-PN-001":
+                        ev.what_can_i_do = "Check the front panel or main packaging face to locate the generic commodity name. Re-run the inspection with the front panel captured."
+                    elif ev.field in ("manufacturer", "address") or ev.rule_id in ("LM-MFG-001", "LM-ADDR-001"):
+                        ev.what_can_i_do = "Inspect the back, side, or bottom panels for responsible manufacturer or packer name, complete postal address, and PIN code."
+                    elif ev.field == "date_information" or ev.rule_id == "LM-DATE-001":
+                        ev.what_can_i_do = "Check near the packaging crimp, seal, or bottom face for dot-matrix stamped month and year of manufacture or packaging."
+                    elif ev.field == "country_of_origin" or ev.rule_id == "LM-COO-001":
+                        ev.what_can_i_do = "Look for 'Made in [Country]', 'Product of [Country]', or explicit country declaration printed on the physical packaging."
+                    else:
+                        ev.what_can_i_do = "Check the remaining sides of the package or upload clearer images under direct lighting."
             elif ev.status in (RuleStatus.FAIL, RuleStatus.POTENTIAL_ISSUE):
                 # Positive contradiction detected (e.g., bare number without unit, price above MRP)
                 ev.status = RuleStatus.POTENTIAL_ISSUE
@@ -257,6 +356,37 @@ class SessionAggregator:
                     "xmax": bb.xmax,
                 }
 
+            # Resolve source image ID, panel, and evidence text with robust fallback
+            source_img_id = None
+            if ev.evidence and hasattr(ev.evidence, "image_id") and ev.evidence.image_id:
+                source_img_id = ev.evidence.image_id
+            elif f_obj and hasattr(f_obj, "source_image_id") and f_obj.source_image_id:
+                source_img_id = f_obj.source_image_id
+            elif ev.package_panel and images:
+                matching_pnl_img = next(
+                    (img for img in images if img.panel and (img.panel.value == ev.package_panel or str(img.panel) == ev.package_panel)),
+                    None,
+                )
+                if matching_pnl_img:
+                    source_img_id = matching_pnl_img.image_id
+            if not source_img_id and images and ev.detected_value:
+                source_img_id = images[0].image_id
+
+            evidence_txt = None
+            if ev.evidence and hasattr(ev.evidence, "text") and ev.evidence.text:
+                evidence_txt = ev.evidence.text
+            elif f_obj and hasattr(f_obj, "raw_text") and f_obj.raw_text:
+                evidence_txt = f_obj.raw_text
+            elif ev.detected_value:
+                evidence_txt = ev.detected_value
+
+            panel_type = (
+                ev.package_panel
+                or (ev.evidence.panel if ev.evidence and hasattr(ev.evidence, "panel") else None)
+                or (f_obj.source_panel if f_obj and hasattr(f_obj, "source_panel") else None)
+                or "UNKNOWN"
+            )
+
             structured_findings.append({
                 "rule_id": ev.rule_id,
                 "name": ev.name,
@@ -264,11 +394,11 @@ class SessionAggregator:
                 "requirement": ev.requirement,
                 "status": finding_status,
                 "detected_value": ev.detected_value,
-                "evidence": str(ev.evidence) if ev.evidence else None,
-                "evidence_text": ev.evidence.text if (ev.evidence and hasattr(ev.evidence, "text")) else None,
+                "evidence": str(ev.evidence) if ev.evidence else (evidence_txt or None),
+                "evidence_text": evidence_txt,
                 "bounding_box": bbox_dict,
-                "source_image_id": ev.evidence.image_id if (ev.evidence and hasattr(ev.evidence, "image_id")) else None,
-                "package_panel": ev.package_panel,
+                "source_image_id": source_img_id,
+                "package_panel": panel_type,
                 "explanation": ev.reason,
                 "legal_source": ev.legal_source,
                 "legal_source_url": legal_url,
@@ -308,6 +438,7 @@ class SessionAggregator:
             review=rules_review,
             potential_issues=rules_failed,
             findings=structured_findings,
+            coverage=coverage,
         )
 
     def _detect_product_category(
