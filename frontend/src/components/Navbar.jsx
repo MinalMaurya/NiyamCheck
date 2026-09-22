@@ -15,11 +15,16 @@ import {
   Settings as SettingsIcon,
   Sun,
   Moon,
+  UserCheck,
+  Shield,
+  Camera,
 } from 'lucide-react';
 
 export function Navbar({
   activeTab,
   setActiveTab,
+  portalMode = 'consumer',
+  onTogglePortalMode,
   isOnline = true,
   isPwaInstallable = false,
   onInstallPwa,
@@ -30,7 +35,16 @@ export function Navbar({
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const navItems = [
+  // Consumer navigation items
+  const consumerNavItems = [
+    { id: 'consumer_dashboard', label: 'Home', icon: LayoutDashboard },
+    { id: 'consumer_check', label: 'Check a Product', icon: Camera },
+    { id: 'consumer_history', label: 'My Checks', icon: History },
+    { id: 'consumer_help', label: 'Guide & Help', icon: BookOpen },
+  ];
+
+  // Official Legal Metrology Inspector navigation items
+  const officerNavItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'new_inspection', label: 'New Inspection', icon: PlusCircle },
     { id: 'history', label: 'History', icon: History },
@@ -39,9 +53,16 @@ export function Navbar({
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ];
 
+  const isConsumer = portalMode === 'consumer';
+  const navItems = isConsumer ? consumerNavItems : officerNavItems;
+
   const handleNavClick = (tabId) => {
     setActiveTab(tabId);
     setMobileMenuOpen(false);
+  };
+
+  const handleBrandClick = () => {
+    handleNavClick(isConsumer ? 'consumer_dashboard' : 'dashboard');
   };
 
   const handleInstallClick = () => {
@@ -59,12 +80,12 @@ export function Navbar({
         <div
           className="nav-brand"
           style={{ cursor: 'pointer' }}
-          onClick={() => handleNavClick('dashboard')}
+          onClick={handleBrandClick}
           tabIndex={0}
           role="button"
-          aria-label="Go to Dashboard"
+          aria-label={isConsumer ? 'Go to Consumer Home' : 'Go to Officer Dashboard'}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') handleNavClick('dashboard');
+            if (e.key === 'Enter' || e.key === ' ') handleBrandClick();
           }}
         >
           <div className="brand-icon">
@@ -73,12 +94,42 @@ export function Navbar({
           <div className="brand-title-wrap">
             <div className="brand-name">
               <span>NiyamCheck</span>
-              {/* <span style={{ fontSize: '0.85rem', color: '#93C5FD', fontWeight: 500 }}>नियमचेक</span> */}
-              {/* <span className="brand-sih-badge">SIH26034</span> */}
+              <span className={`brand-mode-badge ${isConsumer ? 'badge-consumer-mode' : 'badge-officer-mode'}`}>
+                {isConsumer ? 'Consumer' : 'Officer'}
+              </span>
             </div>
-            {/* <div className="brand-subtitle">Legal Metrology Compliance &bull; CodeHexa</div> */}
           </div>
         </div>
+
+        {/* Portal Mode Switcher (Consumer vs Officer) */}
+        {onTogglePortalMode && (
+          <div className="portal-mode-toggle" role="group" aria-label="Portal Mode Switcher">
+            <button
+              type="button"
+              className={`portal-mode-btn ${isConsumer ? 'active' : ''}`}
+              onClick={() => {
+                onTogglePortalMode('consumer');
+                setActiveTab('consumer_dashboard');
+              }}
+              title="Switch to Consumer Product Check View"
+            >
+              <UserCheck size={13} />
+              <span>Consumer</span>
+            </button>
+            <button
+              type="button"
+              className={`portal-mode-btn ${!isConsumer ? 'active' : ''}`}
+              onClick={() => {
+                onTogglePortalMode('officer');
+                setActiveTab('dashboard');
+              }}
+              title="Switch to Officer Inspection Workbench"
+            >
+              <Shield size={13} />
+              <span>Officer</span>
+            </button>
+          </div>
+        )}
 
         {/* Desktop Navigation Items */}
         <nav className="nav-links desktop-only" role="navigation" aria-label="Desktop Navigation">
@@ -170,6 +221,38 @@ export function Navbar({
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
         <div className="mobile-drawer-menu" role="menu">
+          {/* Mobile Portal Mode Switcher */}
+          {onTogglePortalMode && (
+            <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-subtle)', marginBottom: '0.5rem' }}>
+              <div className="portal-mode-toggle" style={{ width: '100%' }}>
+                <button
+                  type="button"
+                  style={{ flex: 1 }}
+                  className={`portal-mode-btn ${isConsumer ? 'active' : ''}`}
+                  onClick={() => {
+                    onTogglePortalMode('consumer');
+                    handleNavClick('consumer_dashboard');
+                  }}
+                >
+                  <UserCheck size={14} />
+                  <span>Consumer Mode</span>
+                </button>
+                <button
+                  type="button"
+                  style={{ flex: 1 }}
+                  className={`portal-mode-btn ${!isConsumer ? 'active' : ''}`}
+                  onClick={() => {
+                    onTogglePortalMode('officer');
+                    handleNavClick('dashboard');
+                  }}
+                >
+                  <Shield size={14} />
+                  <span>Officer Mode</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
