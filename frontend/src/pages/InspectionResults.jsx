@@ -48,6 +48,8 @@ import { draftStore } from '../storage/draftStore';
 import { StatusBadge } from '../components/StatusBadge';
 import { ImageViewer } from '../components/ImageViewer';
 import { LegalBasisCard } from '../components/LegalBasisCard';
+import { OfficerReviewPanel } from '../components/OfficerReviewPanel';
+import { useAuth } from '../context/AuthContext';
 
 // Plain-language explanations of codified Legal Metrology requirements
 const RULE_PLAIN_LANGUAGE = {
@@ -802,6 +804,29 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
           onClick={() => setActiveTab('legal')}
         >
           Authoritative Legal Provisions
+        </button>
+        <button
+          type="button"
+          className={`tab-btn ${activeTab === 'officer' ? 'active' : ''}`}
+          onClick={() => setActiveTab('officer')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+        >
+          <ShieldAlert size={14} style={{ color: session.is_finalized ? '#A78BFA' : 'var(--primary-500)' }} />
+          <span>Officer Workbench</span>
+          {session.is_finalized && (
+            <span
+              style={{
+                fontSize: '0.68rem',
+                padding: '0.1rem 0.45rem',
+                borderRadius: 'var(--radius-full)',
+                background: 'rgba(139, 92, 246, 0.2)',
+                color: '#A78BFA',
+                fontWeight: 600,
+              }}
+            >
+              Signed
+            </span>
+          )}
         </button>
       </div>
 
@@ -1595,6 +1620,11 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
             ))}
           </div>
         </div>
+      )}
+
+      {/* TAB 5: Legal Metrology Officer Review & Statutory Finalization */}
+      {activeTab === 'officer' && (
+        <OfficerReviewPanel session={session} onSessionUpdated={setSession} />
       )}
 
       {/* MODAL: Visual Evidence Modal */}

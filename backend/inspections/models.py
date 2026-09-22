@@ -1,5 +1,5 @@
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
@@ -42,7 +42,7 @@ class InspectionSession(BaseModel):
     Holds single or multi-angle photos with aggregated findings and evidence.
     """
     inspection_id: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     product_category: Optional[str] = Field("Packaged Food", description="Detected or assigned packaged product category")
     images: List[InspectionImage] = Field(default_factory=list)
     combined_fields: ExtractedFields
@@ -55,4 +55,11 @@ class InspectionSession(BaseModel):
     review: int = Field(0, description="Requirements needing review / ambiguous / single-panel unobserved")
     potential_issues: int = Field(0, description="Potential issues / statutory non-compliances")
     findings: List[Any] = Field(default_factory=list, description="Detailed findings list for UI and reporting")
+    officer_notes: Optional[str] = Field(None, description="Officer observations and field notes")
+    officer_name: Optional[str] = Field(None, description="Assigned inspecting officer name")
+    officer_id: Optional[str] = Field(None, description="Inspecting officer badge or ID")
+    finding_reviews: Dict[str, Any] = Field(default_factory=dict, description="Officer review decisions per rule ID")
+    final_verdict: Optional[str] = Field(None, description="Officer final enforcement verdict")
+    is_finalized: bool = Field(False, description="Whether the inspection has been signed and finalized by an officer")
+    finalized_at: Optional[datetime] = Field(None, description="Timestamp of officer finalization")
 

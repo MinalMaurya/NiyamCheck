@@ -79,3 +79,22 @@ export async function deleteInspectionImage(inspectionId, imageId) {
   return await api.delete(`/api/v1/inspections/${encodeURIComponent(inspectionId)}/images/${encodeURIComponent(imageId)}`);
 }
 
+export async function updateOfficerReview(inspectionId, {
+  officerName,
+  officerId,
+  officerNotes,
+  findingReviews,
+  finalVerdict,
+  isFinalized,
+}) {
+  return await api.patch(`/api/v1/inspections/${encodeURIComponent(inspectionId)}/review`, {
+    officer_name: officerName,
+    officer_id: officerId,
+    officer_notes: officerNotes,
+    finding_reviews: findingReviews,
+    final_verdict: finalVerdict,
+    is_finalized: isFinalized,
+  });
+}
+
+

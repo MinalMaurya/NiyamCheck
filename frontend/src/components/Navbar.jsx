@@ -15,7 +15,9 @@ import {
   Settings as SettingsIcon,
   Sun,
   Moon,
+  Shield,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export function Navbar({
   activeTab,
@@ -28,12 +30,13 @@ export function Navbar({
   theme = 'dark',
   onToggleTheme,
 }) {
+  const { role, setRole, isOfficer } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'dashboard', label: isOfficer ? 'Officer Station' : 'Dashboard', icon: LayoutDashboard },
     { id: 'new_inspection', label: 'New Inspection', icon: PlusCircle },
-    { id: 'history', label: 'History', icon: History },
+    { id: 'history', label: isOfficer ? 'Case Registry' : 'History', icon: History },
     { id: 'legal_search', label: 'Legal Search', icon: Search },
     { id: 'legal_sources', label: 'Legal Sources', icon: BookOpen },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
@@ -125,6 +128,31 @@ export function Navbar({
               {theme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
             </button>
           )}
+
+          {/* RBAC Role Switcher */}
+          <div className="role-switcher-wrap" title="Switch User Persona (RBAC)">
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="role-select"
+              aria-label="Select User Role"
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                padding: '0.35rem 0.55rem',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: isOfficer ? 'rgba(139, 92, 246, 0.15)' : 'var(--bg-surface-elevated)',
+                border: isOfficer ? '1px solid #8B5CF6' : '1px solid var(--border-default)',
+                color: isOfficer ? '#A78BFA' : 'var(--text-primary)',
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              <option value="OFFICER">🛡️ Officer</option>
+              <option value="CONSUMER">🛒 Consumer</option>
+              <option value="VENDOR">🏭 Vendor</option>
+            </select>
+          </div>
 
           {/* Health status pill */}
           <div

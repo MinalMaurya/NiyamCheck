@@ -5,9 +5,11 @@ import { Footer } from './components/Footer';
 import { SystemInfoModal } from './components/SystemInfoModal';
 import { InstallAppModal } from './components/InstallAppModal';
 import { Dashboard } from './pages/Dashboard';
+import { OfficerDashboard } from './pages/OfficerDashboard';
 import { CreateInspection } from './pages/CreateInspection';
 import { InspectionResults } from './pages/InspectionResults';
 import { History } from './pages/History';
+import { OfficerHistory } from './pages/OfficerHistory';
 import { LegalSearch } from './pages/LegalSearch';
 import { LegalSources } from './pages/LegalSources';
 import { Settings } from './pages/Settings';
@@ -15,13 +17,16 @@ import { createInspection } from './api/inspections';
 import { createDemoPackageFiles } from './api/sampleData';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { usePwaInstall } from './hooks/usePwaInstall';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
-export function App() {
+function AppInner() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedInspectionId, setSelectedInspectionId] = useState(null);
   const [demoLoading, setDemoLoading] = useState(false);
   const [isSystemInfoOpen, setIsSystemInfoOpen] = useState(false);
   const [isInstallAppOpen, setIsInstallAppOpen] = useState(false);
+
+  const { isOfficer } = useAuth();
 
   // Theme Management (Default: 'dark')
   const [theme, setTheme] = useState(() => {
@@ -99,15 +104,23 @@ export function App() {
 
       <main className="main-content" role="main">
         {activeTab === 'dashboard' && (
-          <Dashboard
-            onNavigate={setActiveTab}
-            onOpenInspection={handleOpenInspection}
-            onLoadDemo={handleLoadDemo}
-          />
+          isOfficer ? (
+            <OfficerDashboard
+              onNavigate={setActiveTab}
+              onOpenInspection={handleOpenInspection}
+              onLoadDemo={handleLoadDemo}
+            />
+          ) : (
+            <Dashboard
+              onNavigate={setActiveTab}
+              onOpenInspection={handleOpenInspection}
+              onLoadDemo={handleLoadDemo}
+            />
+          )
         )}
 
         {activeTab === 'new_inspection' && (
-          <CreateInspection onInspectionCreated={handleInspectionCreated} />
+          <CreateInspection onInspectionCreated={handleInspectionCreated} isOnline={isOnline} />
         )}
 
         {activeTab === 'results' && (
@@ -119,10 +132,17 @@ export function App() {
         )}
 
         {activeTab === 'history' && (
-          <History
-            onOpenInspection={handleOpenInspection}
-            onNavigate={setActiveTab}
-          />
+          isOfficer ? (
+            <OfficerHistory
+              onOpenInspection={handleOpenInspection}
+              onNavigate={setActiveTab}
+            />
+          ) : (
+            <History
+              onOpenInspection={handleOpenInspection}
+              onNavigate={setActiveTab}
+            />
+          )
         )}
 
         {activeTab === 'legal_search' && <LegalSearch />}
@@ -153,6 +173,14 @@ export function App() {
 
       <Footer />
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
   );
 }
 

@@ -1,5 +1,7 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+from datetime import datetime, timezone
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status, Response
+from pydantic import BaseModel, Field
 
 from backend.exceptions import InspectionStageError
 from backend.inspections.models import InspectionSession, PanelType, InspectionImage
@@ -426,3 +428,50 @@ async def delete_inspection_image(inspection_id: str, image_id: str):
 
     inspection_store.save(updated_session)
     return updated_session
+
+
+class OfficerReviewRequest(BaseModel):
+    """Payload for Officer review decisions, observations, and inspection finalization."""
+    officer_name: Optional[str] = Field(None, description="Name of the inspecting officer")
+    officer_id: Optional[str] = Field(None, description="Officer badge or government ID")
+    officer_notes: Optional[str] = Field(None, description="Overall inspection observations or enforcement remarks")
+    finding_reviews: Optional[Dict[str, Any]] = Field(None, description="Per-rule officer review decisions {rule_id: {decision, note}}")
+    final_verdict: Optional[str] = Field(None, description="Final legal metrology determination (e.g. COMPLIANT, NOTICE_ISSUED, PENDING_LAB_TEST)")
+    is_finalized: Optional[bool] = Field(False, description="Whether to finalize and lock the inspection")
+
+
+@router.patch(
+    "/{inspection_id}/review",
+    response_model=InspectionSession,
+    summary="Update Officer Review, Observations, and Finalize Inspection",
+    description="Records inspecting officer field observations, finding review determinations, and final statutory determination.",
+)
+async def update_officer_review(inspection_id: str, payload: OfficerReviewRequest):
+    session = inspection_store.get(inspection_id)
+    if not session:
+        raise InspectionStageError(
+            stage="compliance_check",
+            error_code="SESSION_NOT_FOUND",
+            message=f"Inspection session '{inspection_id}' not found.",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    if payload.officer_name is not None:
+        session.officer_name = payload.officer_name
+    if payload.officer_id is not None:
+        session.officer_id = payload.officer_id
+    if payload.officer_notes is not None:
+        session.officer_notes = payload.officer_notes
+    if payload.finding_reviews is not None:
+        if not hasattr(session, "finding_reviews") or session.finding_reviews is None:
+            session.finding_reviews = {}
+        session.finding_reviews.update(payload.finding_reviews)
+    if payload.final_verdict is not None:
+        session.final_verdict = payload.final_verdict
+    if payload.is_finalized:
+        session.is_finalized = True
+        session.finalized_at = datetime.now(timezone.utc)
+
+    inspection_store.save(session)
+    return session
+
