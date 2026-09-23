@@ -9,6 +9,12 @@ python-multipart>=0.0.9
 httpx>=0.27.0
 python-dateutil>=2.9.0
 
+# Authentication & Security
+passlib[bcrypt]
+bcrypt==4.0.1
+email-validator
+python-jose[cryptography]
+
 # Optional OCR / Computer Vision Dependencies (production deployment)
 # opencv-python-headless>=4.9.0
 # paddlepaddle>=2.6.0
