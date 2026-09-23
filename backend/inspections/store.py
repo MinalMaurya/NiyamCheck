@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 
 from backend.database import init_db
 from backend.inspections.db_store import postgresql_inspection_store
@@ -27,6 +27,10 @@ class InspectionStore(ABC):
         limit: int = 50,
         offset: int = 0,
     ) -> List[InspectionSession]:
+        pass
+
+    @abstractmethod
+    def get_stats(self) -> Dict[str, Any]:
         pass
 
     @abstractmethod
@@ -119,6 +123,68 @@ class InMemoryInspectionStore(InspectionStore):
 
         return results
 
+    def get_stats(self) -> Dict[str, Any]:
+        total = 0
+        compliant = 0
+        non_compliant = 0
+        needs_review = 0
+        category_breakdown: Dict[str, int] = {}
+        violations: Dict[str, int] = {}
+        finalized_count = 0
+
+        for session in self._store.values():
+            if getattr(session, "is_deleted", False):
+                continue
+
+            total += 1
+
+            st = session.status.value if hasattr(session.status, "value") else str(session.status)
+            st_clean = (st or "").strip().upper()
+            if st_clean in ("COMPLIANT", "PASS"):
+                compliant += 1
+            elif st_clean in ("NON_COMPLIANT", "FAIL", "POTENTIAL_ISSUE", "POTENTIAL_ISSUES"):
+                non_compliant += 1
+            else:
+                needs_review += 1
+
+            cat_raw = getattr(session, "product_category", None)
+            cat_label = cat_raw.strip() if (cat_raw and cat_raw.strip()) else "Unknown"
+            category_breakdown[cat_label] = category_breakdown.get(cat_label, 0) + 1
+
+            if getattr(session, "is_finalized", False):
+                finalized_count += 1
+
+            findings = getattr(session, "findings", None) or []
+            if not findings and hasattr(session, "compliance") and session.compliance:
+                findings = getattr(session.compliance, "evaluations", []) or []
+
+            if isinstance(findings, list):
+                for f in findings:
+                    if isinstance(f, dict):
+                        f_status = str(f.get("status") or "").upper()
+                        rule_id = f.get("rule_id") or f.get("id") or ""
+                    else:
+                        raw_st = getattr(f, "status", "")
+                        f_status = str(raw_st.value if hasattr(raw_st, "value") else raw_st).upper()
+                        rule_id = getattr(f, "rule_id", "") or getattr(f, "id", "") or ""
+
+                    if rule_id and f_status in ("FAIL", "POTENTIAL_ISSUE", "NON_COMPLIANT"):
+                        violations[rule_id] = violations.get(rule_id, 0) + 1
+
+        compliance_rate_pct = round((compliant / total) * 100, 2) if total > 0 else 0.0
+        top_violations = dict(sorted(violations.items(), key=lambda x: x[1], reverse=True))
+
+        return {
+            "total": total,
+            "compliant": compliant,
+            "non_compliant": non_compliant,
+            "needs_review": needs_review,
+            "compliance_rate_pct": compliance_rate_pct,
+            "top_violations": top_violations,
+            "category_breakdown": category_breakdown,
+            "finalized_count": finalized_count,
+        }
+
     def delete(self, inspection_id: str) -> bool:
         if inspection_id in self._images:
             del self._images[inspection_id]
@@ -192,6 +258,11 @@ class DatabaseInspectionStore(InspectionStore):
             limit=limit,
             offset=offset,
         )
+
+    def get_stats(self) -> Dict[str, Any]:
+        if self._use_db:
+            return postgresql_inspection_store.get_stats()
+        return self._fallback.get_stats()
 
     def delete(self, inspection_id: str) -> bool:
         if self._use_db:

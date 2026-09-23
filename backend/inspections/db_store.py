@@ -1,8 +1,8 @@
 import json
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
-from sqlalchemy import String, DateTime, Boolean, Text, Integer, JSON, or_
+from sqlalchemy import String, DateTime, Boolean, Text, Integer, JSON, or_, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base, SessionLocal
@@ -116,6 +116,86 @@ class PostgreSQLInspectionStore:
 
             records = query.all()
             return [InspectionSession.model_validate(r.session_data) for r in records]
+        finally:
+            db.close()
+
+    def get_stats(self) -> Dict[str, Any]:
+        db = SessionLocal()
+        try:
+            total = db.query(func.count(InspectionSessionDB.id)).filter(InspectionSessionDB.is_deleted == False).scalar() or 0
+
+            status_rows = (
+                db.query(InspectionSessionDB.status, func.count(InspectionSessionDB.id))
+                .filter(InspectionSessionDB.is_deleted == False)
+                .group_by(InspectionSessionDB.status)
+                .all()
+            )
+            compliant = 0
+            non_compliant = 0
+            needs_review = 0
+            for st_raw, count in status_rows:
+                st = (st_raw or "").strip().upper()
+                if st in ("COMPLIANT", "PASS"):
+                    compliant += count
+                elif st in ("NON_COMPLIANT", "FAIL", "POTENTIAL_ISSUE", "POTENTIAL_ISSUES"):
+                    non_compliant += count
+                else:
+                    needs_review += count
+
+            cat_rows = (
+                db.query(InspectionSessionDB.product_category, func.count(InspectionSessionDB.id))
+                .filter(InspectionSessionDB.is_deleted == False)
+                .group_by(InspectionSessionDB.product_category)
+                .all()
+            )
+            category_breakdown: Dict[str, int] = {}
+            for cat_raw, count in cat_rows:
+                cat_label = cat_raw.strip() if (cat_raw and cat_raw.strip()) else "Unknown"
+                category_breakdown[cat_label] = category_breakdown.get(cat_label, 0) + count
+
+            session_data_rows = (
+                db.query(InspectionSessionDB.session_data)
+                .filter(InspectionSessionDB.is_deleted == False)
+                .all()
+            )
+            violations: Dict[str, int] = {}
+            finalized_count = 0
+
+            for (s_data,) in session_data_rows:
+                if not s_data:
+                    continue
+                data = json.loads(s_data) if isinstance(s_data, str) else s_data
+                if not isinstance(data, dict):
+                    continue
+
+                if data.get("is_finalized"):
+                    finalized_count += 1
+
+                findings = data.get("findings")
+                if not findings and "compliance" in data and isinstance(data["compliance"], dict):
+                    findings = data["compliance"].get("evaluations")
+
+                if isinstance(findings, list):
+                    for f in findings:
+                        if isinstance(f, dict):
+                            f_status = str(f.get("status") or "").upper()
+                            rule_id = f.get("rule_id") or f.get("id") or ""
+                            if rule_id and f_status in ("FAIL", "POTENTIAL_ISSUE", "NON_COMPLIANT"):
+                                violations[rule_id] = violations.get(rule_id, 0) + 1
+
+            compliance_rate_pct = round((compliant / total) * 100, 2) if total > 0 else 0.0
+            top_violations = dict(sorted(violations.items(), key=lambda x: x[1], reverse=True))
+
+            return {
+                "total": total,
+                "compliant": compliant,
+                "non_compliant": non_compliant,
+                "needs_review": needs_review,
+                "compliance_rate_pct": compliance_rate_pct,
+                "top_violations": top_violations,
+                "category_breakdown": category_breakdown,
+                "finalized_count": finalized_count,
+            }
         finally:
             db.close()
 

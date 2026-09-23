@@ -217,6 +217,27 @@ async def list_inspections(
     )
 
 
+class InspectionStatsResponse(BaseModel):
+    total: int = Field(0, description="Total number of non-deleted inspection sessions")
+    compliant: int = Field(0, description="Number of compliant inspection sessions")
+    non_compliant: int = Field(0, description="Number of non-compliant inspection sessions")
+    needs_review: int = Field(0, description="Number of sessions needing review / ambiguous / unverifiable")
+    compliance_rate_pct: float = Field(0.0, description="Compliance rate percentage (0.0 - 100.0)")
+    top_violations: Dict[str, int] = Field(default_factory=dict, description="Frequency map of violated rule IDs")
+    category_breakdown: Dict[str, int] = Field(default_factory=dict, description="Count of inspections per commodity category")
+    finalized_count: int = Field(0, description="Number of officer-signed and finalized inspections")
+
+
+@router.get(
+    "/stats",
+    response_model=InspectionStatsResponse,
+    summary="Get Core Platform & Admin Inspection Statistics",
+    description="Returns aggregated compliance statistics, category distribution, top statutory violations, and officer finalization counts.",
+)
+async def get_inspection_stats():
+    return inspection_store.get_stats()
+
+
 @router.get(
     "/{inspection_id}",
     response_model=InspectionSession,
