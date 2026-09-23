@@ -34,6 +34,36 @@ class InspectionImage(BaseModel):
     compliance: ComplianceResult
     evidence: List[EvidenceItem] = Field(default_factory=list)
     image_url: Optional[str] = Field(None, description="Direct endpoint to fetch packaging image file")
+    panel_type: Optional[str] = Field(None, description="String representation of panel type for client convenience")
+    upload_status: str = Field("captured", description="Image capture and upload status (captured, uploaded, stored)")
+    ocr_status: str = Field("completed", description="OCR processing status (completed, empty, pending, failed)")
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.panel_type:
+            self.panel_type = self.panel.value if hasattr(self.panel, "value") else str(self.panel)
+
+
+class PanelCoverageItem(BaseModel):
+    panel: PanelType
+    panel_name: str
+    is_captured: bool = False
+    image_id: Optional[str] = None
+    upload_status: Optional[str] = None
+    ocr_status: Optional[str] = None
+    word_count: int = 0
+    confidence: float = 0.0
+    expected_declarations: List[str] = Field(default_factory=list)
+
+
+class InspectionCoverage(BaseModel):
+    total_panels_expected: int = 6
+    panels_captured: int = 0
+    coverage_percentage: float = 0.0
+    is_complete: bool = False
+    panels: List[PanelCoverageItem] = Field(default_factory=list)
+    captured_panels: List[str] = Field(default_factory=list)
+    missing_panels: List[str] = Field(default_factory=list)
+    summary: str = ""
 
 
 class InspectionSession(BaseModel):
@@ -65,5 +95,6 @@ class InspectionSession(BaseModel):
     establishment_name: Optional[str] = Field(None, description="Retail store, warehouse, or premises inspected")
     sampling_location: Optional[str] = Field(None, description="Physical location or city of inspection")
     batch_sample_id: Optional[str] = Field(None, description="Physical field sample reference or seizure memo ID")
+    coverage: Optional[InspectionCoverage] = Field(None, description="Packaging panel inspection evidence coverage")
 
 

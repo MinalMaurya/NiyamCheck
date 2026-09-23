@@ -6,6 +6,13 @@ import { SystemInfoModal } from './components/SystemInfoModal';
 import { InstallAppModal } from './components/InstallAppModal';
 import { Dashboard } from './pages/Dashboard';
 import { OfficerDashboard } from './pages/OfficerDashboard';
+import { ConsumerDashboard } from './pages/ConsumerDashboard';
+import { ConsumerCheck } from './pages/ConsumerCheck';
+import { ConsumerProcessing } from './pages/ConsumerProcessing';
+import { ConsumerProductInfo } from './pages/ConsumerProductInfo';
+import { ConsumerCheckResult } from './pages/ConsumerCheckResult';
+import { ConsumerHelp } from './pages/ConsumerHelp';
+import { ConsumerHistory } from './pages/ConsumerHistory';
 import { CreateInspection } from './pages/CreateInspection';
 import { InspectionResults } from './pages/InspectionResults';
 import { History } from './pages/History';
@@ -20,8 +27,21 @@ import { usePwaInstall } from './hooks/usePwaInstall';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
 function AppInner() {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // Portal Mode: 'consumer' (default) vs 'officer'
+  const [portalMode, setPortalMode] = useState(() => {
+    try {
+      return localStorage.getItem('niyamcheck_portal_mode') || 'consumer';
+    } catch {
+      return 'consumer';
+    }
+  });
+
+  const [activeTab, setActiveTab] = useState(() => {
+    return portalMode === 'consumer' ? 'consumer_dashboard' : 'dashboard';
+  });
   const [selectedInspectionId, setSelectedInspectionId] = useState(null);
+  const [activeProductInspectionId, setActiveProductInspectionId] = useState(null);
+  const [pendingCheckData, setPendingCheckData] = useState(null);
   const [demoLoading, setDemoLoading] = useState(false);
   const [isSystemInfoOpen, setIsSystemInfoOpen] = useState(false);
   const [isInstallAppOpen, setIsInstallAppOpen] = useState(false);
@@ -50,17 +70,49 @@ function AppInner() {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   };
 
+  const handleTogglePortalMode = (mode) => {
+    setPortalMode(mode);
+    try {
+      localStorage.setItem('niyamcheck_portal_mode', mode);
+    } catch (e) {
+      console.warn('Could not persist portal mode:', e);
+    }
+  };
+
   const { isFullyConnected: isOnline } = useNetworkStatus();
   const { isInstallable, promptInstall } = usePwaInstall();
 
+  // Officer / General Inspection Opener
   const handleOpenInspection = (inspectionId) => {
     setSelectedInspectionId(inspectionId);
     setActiveTab('results');
   };
 
+  // Consumer Product Inspection Opener
+  const handleOpenConsumerInspection = (inspectionId) => {
+    setActiveProductInspectionId(inspectionId);
+    setSelectedInspectionId(inspectionId);
+    setActiveTab('consumer_result');
+  };
+
   const handleInspectionCreated = (inspectionId) => {
     setSelectedInspectionId(inspectionId);
-    setActiveTab('results');
+    setActiveProductInspectionId(inspectionId);
+    setActiveTab(portalMode === 'consumer' ? 'consumer_result' : 'results');
+  };
+
+  // Handler for ConsumerCheck -> ConsumerProcessing
+  const handleStartProcessing = (data) => {
+    setPendingCheckData(data);
+    setActiveTab('consumer_processing');
+  };
+
+  // Handler for ConsumerProcessing -> ConsumerCheckResult
+  const handleProcessingSuccess = (inspectionId) => {
+    setActiveProductInspectionId(inspectionId);
+    setSelectedInspectionId(inspectionId);
+    setPendingCheckData(null);
+    setActiveTab('consumer_result');
   };
 
   const handleLoadDemo = async () => {
@@ -71,7 +123,8 @@ function AppInner() {
       const panels = demoSamples.map((s) => s.panel);
       const session = await createInspection({ files, panels });
       setSelectedInspectionId(session.inspection_id);
-      setActiveTab('results');
+      setActiveProductInspectionId(session.inspection_id);
+      setActiveTab(portalMode === 'consumer' ? 'consumer_result' : 'results');
     } catch (err) {
       alert(`Demo package execution failed: ${err.message}`);
     } finally {
@@ -84,6 +137,8 @@ function AppInner() {
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        portalMode={portalMode}
+        onTogglePortalMode={handleTogglePortalMode}
         isOnline={isOnline}
         isPwaInstallable={isInstallable}
         onInstallPwa={promptInstall}
@@ -103,6 +158,63 @@ function AppInner() {
       )}
 
       <main className="main-content" role="main">
+        {/* Consumer Portal Pages */}
+        {activeTab === 'consumer_dashboard' && (
+          <ConsumerDashboard
+            onNavigate={setActiveTab}
+            onOpenInspection={handleOpenConsumerInspection}
+            onLoadDemo={handleLoadDemo}
+          />
+        )}
+
+        {activeTab === 'consumer_check' && (
+          <ConsumerCheck
+            onStartProcessing={handleStartProcessing}
+            onInspectionCreated={handleInspectionCreated}
+            onCancel={() => setActiveTab('consumer_dashboard')}
+            onLoadDemo={handleLoadDemo}
+            isOnline={isOnline}
+          />
+        )}
+
+        {activeTab === 'consumer_processing' && (
+          <ConsumerProcessing
+            pendingData={pendingCheckData}
+            onSuccess={handleProcessingSuccess}
+            onCancel={() => setActiveTab('consumer_check')}
+          />
+        )}
+
+        {activeTab === 'consumer_product_info' && (
+          <ConsumerProductInfo
+            inspectionId={activeProductInspectionId || selectedInspectionId}
+            onNavigate={setActiveTab}
+            onViewFullResult={() => setActiveTab('consumer_result')}
+            onCheckAnother={() => setActiveTab('consumer_check')}
+          />
+        )}
+
+        {activeTab === 'consumer_result' && (
+          <ConsumerCheckResult
+            inspectionId={activeProductInspectionId || selectedInspectionId}
+            onNavigate={setActiveTab}
+            onViewProductInfo={() => setActiveTab('consumer_product_info')}
+            onCheckAnother={() => setActiveTab('consumer_check')}
+          />
+        )}
+
+        {activeTab === 'consumer_history' && (
+          <ConsumerHistory
+            onOpenCheck={handleOpenConsumerInspection}
+            onNavigate={setActiveTab}
+          />
+        )}
+
+        {activeTab === 'consumer_help' && (
+          <ConsumerHelp onNavigate={setActiveTab} />
+        )}
+
+        {/* Officer Workbench Pages */}
         {activeTab === 'dashboard' && (
           isOfficer ? (
             <OfficerDashboard
@@ -126,7 +238,7 @@ function AppInner() {
         {activeTab === 'results' && (
           <InspectionResults
             inspectionId={selectedInspectionId}
-            onBack={() => setActiveTab('dashboard')}
+            onBack={() => setActiveTab(portalMode === 'consumer' ? 'consumer_result' : 'dashboard')}
             onOpenInspection={handleOpenInspection}
           />
         )}

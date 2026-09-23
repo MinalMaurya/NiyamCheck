@@ -41,8 +41,15 @@ export function StatusBadge({ status, size = 'normal', showIcon = true }) {
 
 
     case 'NOT_VERIFIABLE':
+    case 'UNABLE_TO_VERIFY':
+    case 'INSUFFICIENT_EVIDENCE':
       badgeClass = 'badge-not-verifiable';
-      label = 'NOT VERIFIABLE';
+      label =
+        norm === 'INSUFFICIENT_EVIDENCE'
+          ? 'INSUFFICIENT EVIDENCE'
+          : norm === 'UNABLE_TO_VERIFY'
+          ? 'UNABLE TO VERIFY'
+          : 'NOT VERIFIABLE';
       Icon = MinusCircle;
       break;
 

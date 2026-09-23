@@ -29,6 +29,9 @@ class InspectionSessionDB(Base):
 class PostgreSQLInspectionStore:
     """Persistent PostgreSQL-capable inspection store with SQLite fallback for local dev."""
 
+    def __init__(self):
+        self._images: dict = {}
+
     def save(self, session: InspectionSession) -> None:
         db = SessionLocal()
         try:
@@ -81,6 +84,8 @@ class PostgreSQLInspectionStore:
             db.close()
 
     def delete(self, inspection_id: str) -> bool:
+        if inspection_id in self._images:
+            del self._images[inspection_id]
         db = SessionLocal()
         try:
             record = db.query(InspectionSessionDB).filter_by(inspection_id=inspection_id).first()
@@ -93,16 +98,21 @@ class PostgreSQLInspectionStore:
             db.close()
 
     def save_image(self, inspection_id: str, image_id: str, image_bytes: bytes, mime_type: str = "image/jpeg") -> None:
-        """Image persistence is retained in the fallback in-memory store to minimize scope; this can be expanded later."""
-        pass
+        if inspection_id not in self._images:
+            self._images[inspection_id] = {}
+        self._images[inspection_id][image_id] = (image_bytes, mime_type)
 
     def get_image(self, inspection_id: str, image_id: str) -> Optional[tuple]:
-        return None
+        return self._images.get(inspection_id, {}).get(image_id)
 
     def delete_image(self, inspection_id: str, image_id: str) -> bool:
+        if inspection_id in self._images and image_id in self._images[inspection_id]:
+            del self._images[inspection_id][image_id]
+            return True
         return False
 
     def clear(self) -> None:
+        self._images.clear()
         db = SessionLocal()
         try:
             db.query(InspectionSessionDB).delete()
