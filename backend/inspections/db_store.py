@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 from typing import Optional, List
 
-from sqlalchemy import String, DateTime, Boolean, Text, Integer, JSON
+from sqlalchemy import String, DateTime, Boolean, Text, Integer, JSON, or_
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database import Base, SessionLocal
@@ -75,10 +75,46 @@ class PostgreSQLInspectionStore:
         finally:
             db.close()
 
-    def list_all(self) -> List[InspectionSession]:
+    def list_all(
+        self,
+        status: Optional[str] = None,
+        category: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[InspectionSession]:
         db = SessionLocal()
         try:
-            records = db.query(InspectionSessionDB).filter_by(is_deleted=False).order_by(InspectionSessionDB.created_at.desc()).all()
+            query = db.query(InspectionSessionDB).filter(InspectionSessionDB.is_deleted == False)
+
+            if status and status.strip():
+                clean_status = status.strip()
+                query = query.filter(InspectionSessionDB.status.ilike(clean_status))
+
+            if category and category.strip():
+                clean_category = category.strip()
+                query = query.filter(InspectionSessionDB.product_category.ilike(f"%{clean_category}%"))
+
+            if search and search.strip():
+                clean_search = search.strip()
+                search_pattern = f"%{clean_search}%"
+                query = query.filter(
+                    or_(
+                        InspectionSessionDB.inspection_id.ilike(search_pattern),
+                        InspectionSessionDB.product_category.ilike(search_pattern),
+                        InspectionSessionDB.summary.ilike(search_pattern),
+                    )
+                )
+
+            query = query.order_by(InspectionSessionDB.created_at.desc())
+
+            if offset > 0:
+                query = query.offset(offset)
+
+            if limit is not None and limit > 0:
+                query = query.limit(limit)
+
+            records = query.all()
             return [InspectionSession.model_validate(r.session_data) for r in records]
         finally:
             db.close()

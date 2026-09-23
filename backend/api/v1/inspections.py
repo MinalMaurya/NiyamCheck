@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status, Response
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status, Response, Query
 from pydantic import BaseModel, Field
 
 from backend.exceptions import InspectionStageError
@@ -199,10 +199,22 @@ async def create_inspection(
     "",
     response_model=List[InspectionSession],
     summary="List all Inspection Sessions",
-    description="Returns all packaging inspection sessions stored in the current environment.",
+    description="Returns packaging inspection sessions stored in the current environment with optional filtering and pagination.",
 )
-async def list_inspections():
-    return inspection_store.list_all()
+async def list_inspections(
+    status: Optional[str] = Query(None, description="Filter by inspection status (e.g. COMPLIANT, NON_COMPLIANT, NEEDS_REVIEW)"),
+    category: Optional[str] = Query(None, description="Filter by product category"),
+    search: Optional[str] = Query(None, description="Search keyword across inspection ID, category, or summary"),
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of sessions to return (1-100)"),
+    offset: int = Query(0, ge=0, description="Offset index for pagination (>=0)"),
+):
+    return inspection_store.list_all(
+        status=status,
+        category=category,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get(

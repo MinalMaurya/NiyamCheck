@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 from typing import Dict, Optional, List
 
 from backend.database import init_db
@@ -18,7 +19,14 @@ class InspectionStore(ABC):
         pass
 
     @abstractmethod
-    def list_all(self) -> List[InspectionSession]:
+    def list_all(
+        self,
+        status: Optional[str] = None,
+        category: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[InspectionSession]:
         pass
 
     @abstractmethod
@@ -55,8 +63,61 @@ class InMemoryInspectionStore(InspectionStore):
     def get(self, inspection_id: str) -> Optional[InspectionSession]:
         return self._store.get(inspection_id)
 
-    def list_all(self) -> List[InspectionSession]:
-        return list(self._store.values())
+    def list_all(
+        self,
+        status: Optional[str] = None,
+        category: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[InspectionSession]:
+        results: List[InspectionSession] = []
+        for session in self._store.values():
+            if getattr(session, "is_deleted", False):
+                continue
+
+            if status and status.strip():
+                clean_status = status.strip().upper()
+                session_status = session.status.value if hasattr(session.status, "value") else str(session.status)
+                if session_status.strip().upper() != clean_status:
+                    continue
+
+            if category and category.strip():
+                clean_cat = category.strip().lower()
+                session_cat = (getattr(session, "product_category", None) or "").strip().lower()
+                if clean_cat not in session_cat:
+                    continue
+
+            if search and search.strip():
+                term = search.strip().lower()
+                insp_id = (getattr(session, "inspection_id", "") or "").lower()
+                prod_cat = (getattr(session, "product_category", "") or "").lower()
+                summ = (getattr(session, "summary", "") or "").lower()
+                if term not in insp_id and term not in prod_cat and term not in summ:
+                    continue
+
+            results.append(session)
+
+        def sort_key(s: InspectionSession):
+            dt = getattr(s, "created_at", None)
+            if isinstance(dt, datetime):
+                return dt.timestamp() if dt.tzinfo else dt.replace(tzinfo=timezone.utc).timestamp()
+            if isinstance(dt, str):
+                try:
+                    return datetime.fromisoformat(dt).timestamp()
+                except Exception:
+                    pass
+            return 0.0
+
+        results.sort(key=sort_key, reverse=True)
+
+        if offset > 0:
+            results = results[offset:]
+
+        if limit is not None and limit > 0:
+            results = results[:limit]
+
+        return results
 
     def delete(self, inspection_id: str) -> bool:
         if inspection_id in self._images:
@@ -108,10 +169,29 @@ class DatabaseInspectionStore(InspectionStore):
             return postgresql_inspection_store.get(inspection_id)
         return self._fallback.get(inspection_id)
 
-    def list_all(self) -> List[InspectionSession]:
+    def list_all(
+        self,
+        status: Optional[str] = None,
+        category: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> List[InspectionSession]:
         if self._use_db:
-            return postgresql_inspection_store.list_all()
-        return self._fallback.list_all()
+            return postgresql_inspection_store.list_all(
+                status=status,
+                category=category,
+                search=search,
+                limit=limit,
+                offset=offset,
+            )
+        return self._fallback.list_all(
+            status=status,
+            category=category,
+            search=search,
+            limit=limit,
+            offset=offset,
+        )
 
     def delete(self, inspection_id: str) -> bool:
         if self._use_db:
