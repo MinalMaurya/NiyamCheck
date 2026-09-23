@@ -15,6 +15,8 @@ import {
   Sparkles,
   UserCheck,
   Building,
+  MapPin,
+  Tag,
 } from 'lucide-react';
 import { listInspections, downloadReportPdf } from '../api/inspections';
 import { StatusBadge } from '../components/StatusBadge';
@@ -83,7 +85,19 @@ export function OfficerDashboard({ onNavigate, onOpenInspection, onLoadDemo }) {
       const mfgName = (item.combined_fields?.manufacturer?.value || '').toLowerCase();
       const category = (item.product_category || '').toLowerCase();
       const notes = (item.officer_notes || '').toLowerCase();
-      return matchId || prodName.includes(q) || mfgName.includes(q) || category.includes(q) || notes.includes(q);
+      const establishment = (item.establishment_name || '').toLowerCase();
+      const location = (item.sampling_location || '').toLowerCase();
+      const sampleId = (item.batch_sample_id || '').toLowerCase();
+      return (
+        matchId ||
+        prodName.includes(q) ||
+        mfgName.includes(q) ||
+        category.includes(q) ||
+        notes.includes(q) ||
+        establishment.includes(q) ||
+        location.includes(q) ||
+        sampleId.includes(q)
+      );
     }
     return true;
   });
@@ -487,6 +501,19 @@ export function OfficerDashboard({ onNavigate, onOpenInspection, onLoadDemo }) {
                         {mfg && (
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '240px' }}>
                             {mfg}
+                          </div>
+                        )}
+                        {insp.establishment_name && (
+                          <div style={{ fontSize: '0.73rem', color: 'var(--primary-400)', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.2rem' }}>
+                            <Building size={11} style={{ flexShrink: 0 }} />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>
+                              {insp.establishment_name}
+                            </span>
+                            {insp.sampling_location && (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>
+                                &bull; {insp.sampling_location}
+                              </span>
+                            )}
                           </div>
                         )}
                       </td>

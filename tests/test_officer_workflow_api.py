@@ -84,6 +84,111 @@ class TestOfficerWorkflowAPI(unittest.TestCase):
         self.assertEqual(report_res.headers.get("content-type"), "application/pdf")
         self.assertTrue(report_res.content.startswith(b"%PDF"))
 
+    def test_create_inspection_with_officer_and_premise_context(self):
+        img_bytes = create_sample_jpeg_bytes()
+        files = [
+            ("files", ("front_panel.jpg", io.BytesIO(img_bytes), "image/jpeg")),
+        ]
+        data = {
+            "panels": ["FRONT"],
+            "establishment_name": "MegaMart Retail Ltd #42",
+            "sampling_location": "Andheri West, Mumbai, MH",
+            "batch_sample_id": "SMPL-2026-MH-991",
+            "officer_name": "Inspector R. Sharma",
+            "officer_id": "LM-OFF-MH-4001",
+        }
+        create_res = self.client.post("/api/v1/inspections", files=files, data=data)
+        self.assertEqual(create_res.status_code, 200)
+        session_data = create_res.json()
+        insp_id = session_data["inspection_id"]
+
+        self.assertEqual(session_data["establishment_name"], "MegaMart Retail Ltd #42")
+        self.assertEqual(session_data["sampling_location"], "Andheri West, Mumbai, MH")
+        self.assertEqual(session_data["batch_sample_id"], "SMPL-2026-MH-991")
+        self.assertEqual(session_data["officer_name"], "Inspector R. Sharma")
+        self.assertEqual(session_data["officer_id"], "LM-OFF-MH-4001")
+
+        # Verify PDF report generation with officer and premise details
+        report_res = self.client.get(f"/api/v1/inspections/{insp_id}/report")
+        self.assertEqual(report_res.status_code, 200)
+        self.assertEqual(report_res.headers.get("content-type"), "application/pdf")
+        self.assertTrue(report_res.content.startswith(b"%PDF"))
+
     def test_officer_review_404_for_unknown_session(self):
         res = self.client.patch("/api/v1/inspections/NON_EXISTENT_ID/review", json={"officer_name": "Test"})
         self.assertEqual(res.status_code, 404)
+
+    def test_full_officer_lifecycle_and_report_json_and_list(self):
+        """Verifies complete real workflow: create -> review -> finalize -> reload -> report.json -> list."""
+        img_bytes = create_sample_jpeg_bytes()
+        files = [
+            ("files", ("front_panel.jpg", io.BytesIO(img_bytes), "image/jpeg")),
+        ]
+        data = {
+            "panels": ["FRONT"],
+            "establishment_name": "SuperStore HyperMarket Mumbai",
+            "sampling_location": "Bandra Kurla Complex, Mumbai, MH",
+            "batch_sample_id": "MEMO-2026/09-BKC",
+            "officer_name": "Inspector R. Sharma",
+            "officer_id": "LM-OFF-MH-4001",
+        }
+        create_res = self.client.post("/api/v1/inspections", files=files, data=data)
+        self.assertEqual(create_res.status_code, 200)
+        session_data = create_res.json()
+        insp_id = session_data["inspection_id"]
+
+        # 1. Update review determinations and observations
+        review_payload = {
+            "officer_name": "Inspector R. Sharma",
+            "officer_id": "LM-OFF-MH-4001",
+            "officer_notes": "Tested in field. Country of origin verified on outer packaging.",
+            "finding_reviews": {
+                "LM-COO-001": {
+                    "decision": "ACCEPT_AS_COMPLIANT",
+                    "note": "Verified Country of Origin is India.",
+                },
+            },
+            "final_verdict": "COMPLIANT",
+            "is_finalized": True,
+        }
+        patch_res = self.client.patch(f"/api/v1/inspections/{insp_id}/review", json=review_payload)
+        self.assertEqual(patch_res.status_code, 200)
+        updated = patch_res.json()
+        self.assertTrue(updated["is_finalized"])
+        self.assertEqual(updated["final_verdict"], "COMPLIANT")
+        self.assertEqual(updated["establishment_name"], "SuperStore HyperMarket Mumbai")
+
+        # 2. Simulate browser reload via GET
+        reload_res = self.client.get(f"/api/v1/inspections/{insp_id}")
+        self.assertEqual(reload_res.status_code, 200)
+        reloaded = reload_res.json()
+        self.assertTrue(reloaded["is_finalized"])
+        self.assertEqual(reloaded["final_verdict"], "COMPLIANT")
+        self.assertEqual(reloaded["establishment_name"], "SuperStore HyperMarket Mumbai")
+        self.assertEqual(reloaded["sampling_location"], "Bandra Kurla Complex, Mumbai, MH")
+        self.assertEqual(reloaded["batch_sample_id"], "MEMO-2026/09-BKC")
+
+        # 3. Verify report.json contains actual officer and premise data
+        report_json_res = self.client.get(f"/api/v1/inspections/{insp_id}/report.json")
+        self.assertEqual(report_json_res.status_code, 200)
+        report_data = report_json_res.json()
+        self.assertEqual(report_data["inspection_id"], insp_id)
+        self.assertEqual(report_data["officer_name"], "Inspector R. Sharma")
+        self.assertEqual(report_data["officer_id"], "LM-OFF-MH-4001")
+        self.assertEqual(report_data["establishment_name"], "SuperStore HyperMarket Mumbai")
+        self.assertEqual(report_data["sampling_location"], "Bandra Kurla Complex, Mumbai, MH")
+        self.assertEqual(report_data["batch_sample_id"], "MEMO-2026/09-BKC")
+        self.assertTrue(report_data["is_finalized"])
+        self.assertEqual(report_data["final_verdict"], "COMPLIANT")
+        self.assertIn("LM-COO-001", report_data["finding_reviews"])
+
+        # 4. Verify listing (Officer Dashboard & History) includes the session with all fields
+        list_res = self.client.get("/api/v1/inspections")
+        self.assertEqual(list_res.status_code, 200)
+        items = list_res.json()
+        found = next((item for item in items if item["inspection_id"] == insp_id), None)
+        self.assertIsNotNone(found)
+        self.assertTrue(found["is_finalized"])
+        self.assertEqual(found["establishment_name"], "SuperStore HyperMarket Mumbai")
+        self.assertEqual(found["batch_sample_id"], "MEMO-2026/09-BKC")
+

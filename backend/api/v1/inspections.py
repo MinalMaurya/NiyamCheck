@@ -45,6 +45,26 @@ async def create_inspection(
         None,
         description="Optional pre-assigned inspection ID",
     ),
+    establishment_name: Optional[str] = Form(
+        None,
+        description="Optional retail premises or warehouse name inspected",
+    ),
+    sampling_location: Optional[str] = Form(
+        None,
+        description="Optional physical sampling location or city",
+    ),
+    batch_sample_id: Optional[str] = Form(
+        None,
+        description="Optional physical sample memo or batch reference ID",
+    ),
+    officer_name: Optional[str] = Form(
+        None,
+        description="Optional inspecting officer name",
+    ),
+    officer_id: Optional[str] = Form(
+        None,
+        description="Optional inspecting officer badge or ID",
+    ),
 ):
     if not files:
         raise InspectionStageError(
@@ -145,6 +165,17 @@ async def create_inspection(
 
         for img in session.images:
             img.image_url = f"/api/v1/inspections/{session.inspection_id}/images/{img.image_id}"
+
+        if establishment_name:
+            session.establishment_name = establishment_name
+        if sampling_location:
+            session.sampling_location = sampling_location
+        if batch_sample_id:
+            session.batch_sample_id = batch_sample_id
+        if officer_name:
+            session.officer_name = officer_name
+        if officer_id:
+            session.officer_id = officer_id
 
         # Persist session to store
         inspection_store.save(session)
@@ -438,6 +469,9 @@ class OfficerReviewRequest(BaseModel):
     finding_reviews: Optional[Dict[str, Any]] = Field(None, description="Per-rule officer review decisions {rule_id: {decision, note}}")
     final_verdict: Optional[str] = Field(None, description="Final legal metrology determination (e.g. COMPLIANT, NOTICE_ISSUED, PENDING_LAB_TEST)")
     is_finalized: Optional[bool] = Field(False, description="Whether to finalize and lock the inspection")
+    establishment_name: Optional[str] = Field(None, description="Retail premises or warehouse name inspected")
+    sampling_location: Optional[str] = Field(None, description="Physical sampling location or city")
+    batch_sample_id: Optional[str] = Field(None, description="Physical sample memo or batch reference ID")
 
 
 @router.patch(
@@ -468,6 +502,12 @@ async def update_officer_review(inspection_id: str, payload: OfficerReviewReques
         session.finding_reviews.update(payload.finding_reviews)
     if payload.final_verdict is not None:
         session.final_verdict = payload.final_verdict
+    if payload.establishment_name is not None:
+        session.establishment_name = payload.establishment_name
+    if payload.sampling_location is not None:
+        session.sampling_location = payload.sampling_location
+    if payload.batch_sample_id is not None:
+        session.batch_sample_id = payload.batch_sample_id
     if payload.is_finalized:
         session.is_finalized = True
         session.finalized_at = datetime.now(timezone.utc)

@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Filter,
   BadgeAlert,
+  Building,
 } from 'lucide-react';
 import { listInspections, downloadReportPdf, downloadReportJsonFile } from '../api/inspections';
 import { StatusBadge } from '../components/StatusBadge';
@@ -60,7 +61,19 @@ export function OfficerHistory({ onOpenInspection, onNavigate }) {
       const matchMfg = (session.combined_fields?.manufacturer?.value || '').toLowerCase().includes(q);
       const matchNotes = (session.officer_notes || '').toLowerCase().includes(q);
       const matchOfficer = (session.officer_name || '').toLowerCase().includes(q);
-      if (!matchId && !matchProduct && !matchMfg && !matchNotes && !matchOfficer) {
+      const matchPremise = (session.establishment_name || '').toLowerCase().includes(q);
+      const matchLocation = (session.sampling_location || '').toLowerCase().includes(q);
+      const matchBatch = (session.batch_sample_id || '').toLowerCase().includes(q);
+      if (
+        !matchId &&
+        !matchProduct &&
+        !matchMfg &&
+        !matchNotes &&
+        !matchOfficer &&
+        !matchPremise &&
+        !matchLocation &&
+        !matchBatch
+      ) {
         return false;
       }
     }
@@ -315,7 +328,20 @@ export function OfficerHistory({ onOpenInspection, onNavigate }) {
                     </td>
 
                     <td style={{ padding: '0.75rem 0.6rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {prodName}
+                      <div>{prodName}</div>
+                      {item.establishment_name && (
+                        <div style={{ fontSize: '0.72rem', color: 'var(--primary-400)', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.15rem', fontWeight: 400 }}>
+                          <Building size={11} style={{ flexShrink: 0 }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>
+                            {item.establishment_name}
+                          </span>
+                          {item.sampling_location && (
+                            <span style={{ color: 'var(--text-muted)' }}>
+                              &bull; {item.sampling_location}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
 
                     <td style={{ padding: '0.75rem 0.6rem', color: 'var(--text-secondary)', fontSize: '0.8rem', maxWidth: '220px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

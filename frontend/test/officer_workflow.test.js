@@ -114,4 +114,42 @@ describe('Legal Metrology Officer Frontend & Inspection Workflow Tests', () => {
     assert.ok(content.includes('OfficerHistory'), 'Must import OfficerHistory');
     assert.ok(content.includes('isOfficer ?'), 'Must conditionally render based on isOfficer role');
   });
+
+  // Test 10: CreateInspection Officer Premise & Sampling Reference
+  test('CreateInspection provides inspected establishment & sampling memo controls for Officers', () => {
+    const createPath = path.join(frontendRoot, 'src', 'pages', 'CreateInspection.jsx');
+    const content = fs.readFileSync(createPath, 'utf8');
+
+    assert.ok(content.includes('useAuth'), 'Must import useAuth hook');
+    assert.ok(content.includes('establishmentName'), 'Must track establishmentName state');
+    assert.ok(content.includes('samplingLocation'), 'Must track samplingLocation state');
+    assert.ok(content.includes('batchSampleId'), 'Must track batchSampleId state');
+    assert.ok(content.includes('Inspected Establishment & Sampling Context'), 'Must render premise context banner');
+    assert.ok(content.includes('createInspection({'), 'Must pass officer & premise fields to createInspection');
+  });
+
+  // Test 11: OfficerReviewPanel Quick Bulk Review & Statutory Notice Draft
+  test('OfficerReviewPanel provides bulk review action and Section 18 statutory notice draft generator', () => {
+    const panelPath = path.join(frontendRoot, 'src', 'components', 'OfficerReviewPanel.jsx');
+    const content = fs.readFileSync(panelPath, 'utf8');
+
+    assert.ok(content.includes('Mark Unreviewed as Confirm AI'), 'Must support bulk confirm AI action');
+    assert.ok(content.includes('Draft Statutory Notice'), 'Must support statutory notice generation');
+    assert.ok(content.includes('NOTICE OF CONTRAVENTION UNDER SECTION 18'), 'Must generate formal Section 18 notice draft');
+    assert.ok(content.includes('establishmentName'), 'Must support premise context in review panel');
+  });
+
+  // Test 12: Officer Dashboard and History Premise Visibility & Search
+  test('Officer Dashboard and History display inspected premises and support premise-based searching', () => {
+    const dashPath = path.join(frontendRoot, 'src', 'pages', 'OfficerDashboard.jsx');
+    const dashContent = fs.readFileSync(dashPath, 'utf8');
+    assert.ok(dashContent.includes('insp.establishment_name'), 'Dashboard must render establishment name in table');
+    assert.ok(dashContent.includes('establishment.includes(q)'), 'Dashboard search must include establishment name');
+
+    const histPath = path.join(frontendRoot, 'src', 'pages', 'OfficerHistory.jsx');
+    const histContent = fs.readFileSync(histPath, 'utf8');
+    assert.ok(histContent.includes('item.establishment_name'), 'History must render establishment name in table');
+    assert.ok(histContent.includes('matchPremise'), 'History search must include establishment matching');
+  });
 });
+

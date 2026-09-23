@@ -62,4 +62,8 @@ class InspectionSession(BaseModel):
     final_verdict: Optional[str] = Field(None, description="Officer final enforcement verdict")
     is_finalized: bool = Field(False, description="Whether the inspection has been signed and finalized by an officer")
     finalized_at: Optional[datetime] = Field(None, description="Timestamp of officer finalization")
+    establishment_name: Optional[str] = Field(None, description="Retail store, warehouse, or premises inspected")
+    sampling_location: Optional[str] = Field(None, description="Physical location or city of inspection")
+    batch_sample_id: Optional[str] = Field(None, description="Physical field sample reference or seizure memo ID")
+
 

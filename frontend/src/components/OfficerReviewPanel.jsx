@@ -18,6 +18,10 @@ import {
   BadgeAlert,
   Clock,
   ExternalLink,
+  Copy,
+  MapPin,
+  Store,
+  X,
 } from 'lucide-react';
 import { updateOfficerReview, downloadReportPdf, downloadReportJsonFile } from '../api/inspections';
 import { StatusBadge } from './StatusBadge';
@@ -45,11 +49,16 @@ export function OfficerReviewPanel({ session, onSessionUpdated }) {
   const [officerNotes, setOfficerNotes] = useState('');
   const [findingReviews, setFindingReviews] = useState({});
   const [finalVerdict, setFinalVerdict] = useState('COMPLIANT');
+  const [establishmentName, setEstablishmentName] = useState('');
+  const [samplingLocation, setSamplingLocation] = useState('');
+  const [batchSampleId, setBatchSampleId] = useState('');
   const [isFinalized, setIsFinalized] = useState(false);
   const [isEditingAfterFinalize, setIsEditingAfterFinalize] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState(null);
   const [error, setError] = useState(null);
+  const [showNoticeModal, setShowNoticeModal] = useState(false);
+  const [copiedNotice, setCopiedNotice] = useState(false);
 
   useEffect(() => {
     if (session) {
@@ -60,13 +69,16 @@ export function OfficerReviewPanel({ session, onSessionUpdated }) {
           (session.status === 'COMPLIANT' ? 'COMPLIANT' : 'NON_COMPLIANT_NOTICE')
       );
       setIsFinalized(Boolean(session.is_finalized));
+      setEstablishmentName(session.establishment_name || '');
+      setSamplingLocation(session.sampling_location || '');
+      setBatchSampleId(session.batch_sample_id || '');
     }
   }, [session]);
 
   if (!session) return null;
 
   const findings = session.compliance?.findings || [];
-  const isLocked = isFinalized && !isEditingAfterFinalize;
+  const isLocked = (isFinalized && !isEditingAfterFinalize) || !isOfficer;
 
   const handleDecisionChange = (ruleId, decision) => {
     if (isLocked) return;
@@ -90,19 +102,91 @@ export function OfficerReviewPanel({ session, onSessionUpdated }) {
     }));
   };
 
+  const handleMarkAllConfirmAI = () => {
+    if (isLocked) return;
+    const updated = { ...findingReviews };
+    findings.forEach((f) => {
+      if (!updated[f.rule_id]) {
+        updated[f.rule_id] = { decision: 'CONFIRM_AI_VERDICT', remark: '' };
+      }
+    });
+    setFindingReviews(updated);
+  };
+
+  const generateNoticeText = () => {
+    const today = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
+    const manufacturer = session.combined_fields?.manufacturer?.value || session.combined_fields?.packer?.value || 'Responsible Entity';
+    const prodName = session.combined_fields?.product_name?.value || 'Packaged Commodity';
+    const violations = findings
+      .filter((f) => {
+        const rev = findingReviews[f.rule_id]?.decision;
+        return rev === 'CONFIRM_VIOLATION' || (!rev && (f.status === 'FAIL' || f.status === 'POTENTIAL_ISSUE'));
+      })
+      .map((f, i) => `${i + 1}. Rule ${f.rule_id} (${f.name}): ${f.why_flagged || f.requirement}`);
+
+    const violationsList = violations.length > 0 ? violations.join('\n') : '1. Mandatory declarations non-compliant under Rule 6 of PCR 2011.';
+
+    return `GOVERNMENT OF INDIA
+DEPARTMENT OF LEGAL METROLOGY (WEIGHTS & MEASURES)
+${currentUser?.division || 'MUMBAI METROLOGY DIVISION'}
+
+MEMO NO: LM-NTCE/${session.inspection_id}/${new Date().getFullYear()}
+DATE: ${today}
+
+To,
+M/s ${manufacturer}
+(Manufacturer / Packer / Importer of Pre-Packaged Commodity: "${prodName}")
+
+SUBJECT: NOTICE OF CONTRAVENTION UNDER SECTION 18 OF THE LEGAL METROLOGY ACT, 2009 READ WITH RULE 6 OF THE LEGAL METROLOGY (PACKAGED COMMODITIES) RULES, 2011.
+
+Whereas, an inspection of pre-packaged commodities was conducted at:
+Establishment: ${establishmentName || 'Retail Premises'}
+Location: ${samplingLocation || 'Jurisdiction Inspection'}
+Sample Reference / Memo ID: ${batchSampleId || session.inspection_id}
+
+During verification, sample packages of "${prodName}" were inspected and found to contravene mandatory statutory declaration provisions as specified below:
+
+CONTRAVENTIONS OBSERVED:
+${violationsList}
+
+OFFICER FIELD OBSERVATIONS:
+${officerNotes || 'Mandatory packaging declarations missing or non-compliant with standard statutory format.'}
+
+You are hereby called upon to show cause within fifteen (15) days of receipt of this notice as to why penal proceedings under Section 36 of the Legal Metrology Act, 2009 should not be initiated against you, or why the offense should not be compounded under Section 48 upon payment of prescribed compounding fees.
+
+ISSUED BY:
+${currentUser?.name || 'Inspecting Officer'}
+Badge / Government ID: ${currentUser?.badge || 'LM-OFF-MH-4001'}
+Department of Legal Metrology, Government of India
+Audit Digest (SHA-256): ${session.inspection_id}`;
+  };
+
+  const handleCopyNotice = () => {
+    navigator.clipboard.writeText(generateNoticeText());
+    setCopiedNotice(true);
+    setTimeout(() => setCopiedNotice(false), 3000);
+  };
+
   const handleSave = async (shouldFinalize = false) => {
+    if (!isOfficer) {
+      setError('Unauthorized: Officer review modifications require Legal Metrology Officer authority.');
+      return;
+    }
     setSaving(true);
     setError(null);
     setSaveFeedback(null);
 
     try {
       const payload = {
-        officerName: currentUser?.name || 'Inspecting Officer',
-        officerId: currentUser?.badge || 'LM-OFF-MH-4001',
+        officerName: currentUser?.name || session.officer_name || 'Inspecting Officer',
+        officerId: currentUser?.badge || currentUser?.id || session.officer_id || 'LM-OFF-MH-4001',
         officerNotes: officerNotes,
         findingReviews: findingReviews,
         finalVerdict: finalVerdict,
         isFinalized: shouldFinalize ? true : isFinalized,
+        establishmentName: establishmentName || null,
+        samplingLocation: samplingLocation || null,
+        batchSampleId: batchSampleId || null,
       };
 
       const updated = await updateOfficerReview(session.inspection_id, payload);
@@ -201,8 +285,25 @@ export function OfficerReviewPanel({ session, onSessionUpdated }) {
         </div>
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {isFinalized && !isEditingAfterFinalize ? (
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          {!isOfficer ? (
+            <span
+              style={{
+                fontSize: '0.75rem',
+                padding: '0.3rem 0.65rem',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                color: '#FBBF24',
+                border: '1px solid rgba(245, 158, 11, 0.3)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+              }}
+            >
+              <Shield size={12} />
+              Read-Only View (Officer Authority Required)
+            </span>
+          ) : isFinalized && !isEditingAfterFinalize ? (
             <button
               type="button"
               className="btn btn-secondary btn-sm"
@@ -280,6 +381,72 @@ export function OfficerReviewPanel({ session, onSessionUpdated }) {
         </div>
       )}
 
+      {/* Inspected Premises & Field Sampling Record */}
+      <div
+        style={{
+          padding: '1.25rem',
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-default)',
+          marginBottom: '1.5rem',
+        }}
+      >
+        <h3 style={{ fontSize: '1.05rem', color: 'var(--text-primary)', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Store size={16} style={{ color: 'var(--primary-500)' }} />
+          <span>Inspected Premises & Physical Sampling Record</span>
+        </h3>
+        <p style={{ margin: '0 0 0.85rem 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+          Record the audited retail store, warehouse premises, city jurisdiction, and physical package sample reference ID.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.85rem' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+              Target Establishment / Store Name
+            </label>
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g. Metro Supermarket Store #12"
+              value={establishmentName}
+              onChange={(e) => setEstablishmentName(e.target.value)}
+              disabled={isLocked}
+              style={{ fontSize: '0.85rem', width: '100%' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+              Sampling Location / Market
+            </label>
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g. Bandra West, Mumbai, MH"
+              value={samplingLocation}
+              onChange={(e) => setSamplingLocation(e.target.value)}
+              disabled={isLocked}
+              style={{ fontSize: '0.85rem', width: '100%' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+              Physical Sample Memo / Batch Ref ID
+            </label>
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g. SMPL-2026-MH-089"
+              value={batchSampleId}
+              onChange={(e) => setBatchSampleId(e.target.value)}
+              disabled={isLocked}
+              style={{ fontSize: '0.85rem', width: '100%' }}
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Officer Credential Stamp */}
       <div
         style={{
@@ -322,10 +489,23 @@ export function OfficerReviewPanel({ session, onSessionUpdated }) {
 
       {/* Per-Rule Finding Review Matrix */}
       <div style={{ marginBottom: '1.75rem' }}>
-        <h3 style={{ fontSize: '1.05rem', color: 'var(--text-primary)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Scale size={16} style={{ color: 'var(--primary-500)' }} />
-          <span>Statutory Rule Finding Determinations</span>
-        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+          <h3 style={{ fontSize: '1.05rem', color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Scale size={16} style={{ color: 'var(--primary-500)' }} />
+            <span>Statutory Rule Finding Determinations</span>
+          </h3>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={handleMarkAllConfirmAI}
+            disabled={isLocked}
+            style={{ fontSize: '0.75rem', padding: '0.25rem 0.6rem' }}
+            title="Sets all unreviewed rules to Confirm AI Verdict"
+          >
+            <CheckCircle size={13} style={{ color: '#10B981' }} />
+            <span>Mark Unreviewed as Confirm AI</span>
+          </button>
+        </div>
 
         <div style={{ display: 'grid', gap: '0.85rem' }}>
           {findings.map((f) => {
@@ -470,6 +650,17 @@ export function OfficerReviewPanel({ session, onSessionUpdated }) {
               </option>
             ))}
           </select>
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setShowNoticeModal(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', marginTop: '0.85rem' }}
+            title="Generate official statutory notice draft for non-compliant declarations"
+          >
+            <FileText size={14} style={{ color: '#F59E0B' }} />
+            <span>Draft Statutory Notice (Sec 18 / Rule 6)</span>
+          </button>
         </div>
       </div>
 
@@ -514,6 +705,76 @@ export function OfficerReviewPanel({ session, onSessionUpdated }) {
           </button>
         </div>
       </div>
+
+      {/* MODAL: Statutory Notice Draft */}
+      {showNoticeModal && (
+        <div className="modal-backdrop" onClick={() => setShowNoticeModal(false)}>
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '680px' }}>
+            <div className="modal-header">
+              <div className="modal-title">
+                <FileText size={18} style={{ color: '#F59E0B' }} />
+                <span>Statutory Notice Draft — Legal Metrology Act, 2009</span>
+              </div>
+              <button
+                type="button"
+                className="modal-close-btn touch-btn"
+                onClick={() => setShowNoticeModal(false)}
+                title="Close modal"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                Pre-composed formal notice under Rule 6 of PCR 2011 and Section 18/49 of the Legal Metrology Act, 2009. Ready to serve on the responsible manufacturer or packer.
+              </p>
+
+              <pre
+                style={{
+                  backgroundColor: 'var(--bg-canvas)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '1rem',
+                  fontSize: '0.78rem',
+                  lineHeight: '1.5',
+                  color: 'var(--text-primary)',
+                  whiteSpace: 'pre-wrap',
+                  maxHeight: '380px',
+                  overflowY: 'auto',
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {generateNoticeText()}
+              </pre>
+            </div>
+
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                {copiedNotice ? '✓ Notice copied to clipboard!' : 'Click button to copy text.'}
+              </span>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowNoticeModal(false)}
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={handleCopyNotice}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  {copiedNotice ? <Check size={14} /> : <Copy size={14} />}
+                  <span>{copiedNotice ? 'Copied!' : 'Copy Notice Text'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

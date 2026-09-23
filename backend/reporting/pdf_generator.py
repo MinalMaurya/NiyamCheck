@@ -46,13 +46,18 @@ class PDFReportGenerator:
         d1 = ImageDraw.Draw(p1)
 
         # Header Banner
+        is_officer_audit = bool(report.is_finalized or report.officer_name or report.officer_id or report.establishment_name or report.final_verdict)
+        banner_title = "LEGAL METROLOGY ENFORCEMENT & COMPLIANCE INSPECTION REPORT" if is_officer_audit else "CONSUMER PRODUCT PACKAGING INSPECTION REPORT"
+        banner_sub = "Official Statutory Attestation • Legal Metrology (Packaged Commodities) Rules, 2011" if is_officer_audit else "AI-Assisted Legal Metrology (Packaged Commodities) Rules, 2011 Compliance Analysis"
+
         d1.rectangle([0, 0, self.A4_WIDTH, 140], fill=(24, 43, 73))
         d1.text((50, 28), "NIYAMCHECK", fill=(255, 255, 255))
-        d1.text((50, 58), "CONSUMER PRODUCT PACKAGING INSPECTION REPORT", fill=(220, 230, 245))
-        d1.text((50, 88), "AI-Assisted Legal Metrology (Packaged Commodities) Rules, 2011 Compliance Analysis", fill=(180, 200, 225))
+        d1.text((50, 58), banner_title, fill=(220, 230, 245))
+        d1.text((50, 88), banner_sub, fill=(180, 200, 225))
 
         # Metadata Bar
-        d1.rectangle([50, 155, self.A4_WIDTH - 50, 245], fill=(245, 247, 250), outline=(210, 215, 225), width=1)
+        meta_h = 105 if (is_officer_audit and report.establishment_name) else 90
+        d1.rectangle([50, 155, self.A4_WIDTH - 50, 155 + meta_h], fill=(245, 247, 250), outline=(210, 215, 225), width=1)
         prod_name = report.product_information.get("product_name") or "Unverified Product Identity"
         d1.text((70, 168), f"Inspection ID: {report.inspection_id}", fill=(20, 20, 20))
         d1.text((70, 192), f"Product Name: {prod_name[:48]}", fill=(20, 20, 20))
@@ -60,7 +65,12 @@ class PDFReportGenerator:
 
         d1.text((650, 168), f"Inspection Date: {report.generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}", fill=(60, 60, 60))
         d1.text((650, 192), f"Package Panels Submitted: {report.image_count}", fill=(20, 20, 20))
-        d1.text((650, 216), f"Audit Hash: {report.integrity_hash[:22]}...", fill=(80, 80, 80))
+        if is_officer_audit and report.officer_name:
+            d1.text((650, 216), f"Inspecting Officer: {report.officer_name} ({report.officer_id or 'ID Verified'})", fill=(30, 64, 175))
+            if report.establishment_name:
+                d1.text((70, 238), f"Premises / Location: {report.establishment_name} | {report.sampling_location or ''}", fill=(70, 70, 70))
+        else:
+            d1.text((650, 216), f"Audit Hash: {report.integrity_hash[:22]}...", fill=(80, 80, 80))
 
         # Overall Status Verdict Banner
         badge_bg, badge_fg = self.STATUS_COLORS.get(report.overall_status, ((100, 100, 100), (255, 255, 255)))
@@ -158,8 +168,47 @@ class PDFReportGenerator:
         d1.text((50, y_cursor), "Executive Screening Assessment:", fill=(24, 43, 73))
         self._draw_wrapped_text(d1, report.summary, 50, y_cursor + 24, 1100, fill=(50, 50, 50))
 
+        # Official Officer Attestation & Enforcement Action Block (when finalized or officer assigned)
+        if is_officer_audit:
+            att_y = max(y_cursor + 90, 1060)
+            d1.text((50, att_y), "OFFICIAL LEGAL METROLOGY STATUTORY ATTESTATION", fill=(24, 43, 73))
+            att_y += 24
+
+            is_compliant = (report.final_verdict == "COMPLIANT")
+            is_notice = ("NOTICE" in str(report.final_verdict) or "SEIZE" in str(report.final_verdict))
+            box_bg = (240, 253, 244) if is_compliant else (254, 242, 242) if is_notice else (248, 250, 252)
+            box_border = (34, 197, 94) if is_compliant else (239, 68, 68) if is_notice else (148, 163, 184)
+
+            d1.rectangle([50, att_y, self.A4_WIDTH - 50, att_y + 240], fill=box_bg, outline=box_border, width=2)
+
+            verdict_text = report.final_verdict or "PENDING STATUTORY DETERMINATION"
+            d1.text((75, att_y + 16), f"STATUTORY ACTION: {verdict_text}", fill=(20, 20, 20))
+
+            officer_str = f"Inspecting Officer: {report.officer_name or 'Designated Inspector'} • Badge/ID: {report.officer_id or 'LM-OFF-MH-4001'}"
+            d1.text((75, att_y + 44), officer_str, fill=(40, 40, 40))
+
+            fin_time = report.finalized_at.strftime('%Y-%m-%d %H:%M:%S UTC') if report.finalized_at else report.generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')
+            premise_str = f"Premises Inspected: {report.establishment_name or 'Commercial Retail Premise'} | Location: {report.sampling_location or 'Jurisdiction Metrology Division'}"
+            d1.text((75, att_y + 70), premise_str, fill=(60, 60, 60))
+
+            if report.batch_sample_id:
+                d1.text((75, att_y + 94), f"Physical Sample / Seizure Memo ID: {report.batch_sample_id}", fill=(60, 60, 60))
+
+            d1.text((75, att_y + 120), "Officer Observations & Enforcement Remarks:", fill=(24, 43, 73))
+            notes_str = report.officer_notes or "Mandatory declarations checked against physical package. All actions taken under the Legal Metrology Act, 2009."
+            self._draw_wrapped_text(d1, notes_str, 75, att_y + 144, 1050, fill=(30, 30, 30))
+
+            status_seal = "DIGITALLY SIGNED & OFFICIALLY ATTESTED" if report.is_finalized else "PROVISIONAL ENFORCEMENT RECORD"
+            seal_color = (22, 101, 52) if report.is_finalized else (133, 77, 14)
+            d1.text((75, att_y + 205), f"• Enforcement Status: {status_seal} [Attested: {fin_time}]", fill=seal_color)
+
         # Footer Page 1
-        d1.text((50, self.A4_HEIGHT - 50), "NiyamCheck Compliance Platform • Consumer Product Inspection Report • Page 1 of 3", fill=(120, 120, 120))
+        page1_footer = (
+            "NiyamCheck Compliance Platform • Official Legal Metrology Inspection Report • Page 1 of 3"
+            if is_officer_audit
+            else "NiyamCheck Compliance Platform • Consumer Product Inspection Report • Page 1 of 3"
+        )
+        d1.text((50, self.A4_HEIGHT - 50), page1_footer, fill=(120, 120, 120))
         pages.append(p1)
 
         # =========================================================================
@@ -217,7 +266,22 @@ class PDFReportGenerator:
             rule_id = f.get("rule_id", "LM-REQ")
             name = f.get("name", "Statutory Requirement")
             d2.text((70, y2 + 12), f"{name} ({rule_id})", fill=(24, 43, 73))
-            d2.text((750, y2 + 12), st_badge, fill=st_color)
+
+            if report.finding_reviews and rule_id in report.finding_reviews:
+                rev = report.finding_reviews[rule_id]
+                dec_val = rev.get("decision") if isinstance(rev, dict) else str(rev)
+                if dec_val:
+                    dec_label = (
+                        "[OFFICER: COMPLIANT]" if dec_val == "ACCEPT_AS_COMPLIANT" else
+                        "[OFFICER: VIOLATION]" if dec_val == "CONFIRM_VIOLATION" else
+                        "[OFFICER: LAB TEST]" if dec_val == "REQUIRES_FIELD_SAMPLE" else
+                        "[OFFICER: EXEMPT]" if dec_val == "DISMISS_EXEMPT" else
+                        "[OFFICER: CONFIRMED]"
+                    )
+                    dec_color = (16, 185, 129) if dec_val == "ACCEPT_AS_COMPLIANT" else (220, 38, 38) if dec_val == "CONFIRM_VIOLATION" else (37, 99, 235)
+                    d2.text((560, y2 + 12), dec_label, fill=dec_color)
+
+            d2.text((820, y2 + 12), st_badge, fill=st_color)
 
             # Detected Value and Package Panel
             det_val = f.get("detected_value") or "Not clearly detected in submitted images"
@@ -256,7 +320,12 @@ class PDFReportGenerator:
             y2 += card_height + 15
 
         # Footer Page 2
-        d2.text((50, self.A4_HEIGHT - 50), "NiyamCheck Compliance Platform • Consumer Product Inspection Report • Page 2 of 3", fill=(120, 120, 120))
+        page2_footer = (
+            "NiyamCheck Compliance Platform • Official Legal Metrology Inspection Report • Page 2 of 3"
+            if is_officer_audit
+            else "NiyamCheck Compliance Platform • Consumer Product Inspection Report • Page 2 of 3"
+        )
+        d2.text((50, self.A4_HEIGHT - 50), page2_footer, fill=(120, 120, 120))
         pages.append(p2)
 
         # =========================================================================
@@ -361,7 +430,12 @@ class PDFReportGenerator:
         d3.text((70, y3 + 34), report.integrity_hash, fill=(20, 20, 20))
 
         # Footer Page 3
-        d3.text((50, self.A4_HEIGHT - 50), "NiyamCheck Compliance Platform • Consumer Product Inspection Report • Page 3 of 3", fill=(120, 120, 120))
+        page3_footer = (
+            "NiyamCheck Compliance Platform • Official Legal Metrology Inspection Report • Page 3 of 3"
+            if is_officer_audit
+            else "NiyamCheck Compliance Platform • Consumer Product Inspection Report • Page 3 of 3"
+        )
+        d3.text((50, self.A4_HEIGHT - 50), page3_footer, fill=(120, 120, 120))
         pages.append(p3)
 
         # Save pages to PDF bytes using PIL's native PDF writer

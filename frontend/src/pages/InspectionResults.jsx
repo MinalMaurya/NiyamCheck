@@ -121,10 +121,11 @@ const STANDARD_PANELS = [
 ];
 
 export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
+  const { isOfficer } = useAuth();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('consumer'); // 'consumer' | 'images' | 'fields' | 'legal'
+  const [activeTab, setActiveTab] = useState(() => (isOfficer ? 'officer' : 'consumer')); // 'consumer' | 'images' | 'fields' | 'legal' | 'officer'
   const [selectedEvidence, setSelectedEvidence] = useState(null);
   const [findingFilter, setFindingFilter] = useState('ALL'); // 'ALL' | 'PASS' | 'REVIEW' | 'POTENTIAL_ISSUE' | 'NOT_VERIFIABLE'
   
@@ -648,6 +649,42 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
             >
               Category: {session.product_category || 'Packaged Commodity'}
             </span>
+            {(session.establishment_name || session.sampling_location) && (
+              <>
+                <span style={{ color: 'var(--border-bright)' }}>&bull;</span>
+                <span
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    color: '#60A5FA',
+                    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                    padding: '0.2rem 0.65rem',
+                    borderRadius: 'var(--radius-full)',
+                    border: '1px solid rgba(59, 130, 246, 0.25)',
+                  }}
+                >
+                  Premises: {session.establishment_name || 'Retail Store'}{session.sampling_location ? ` • ${session.sampling_location}` : ''}
+                </span>
+              </>
+            )}
+            {session.batch_sample_id && (
+              <>
+                <span style={{ color: 'var(--border-bright)' }}>&bull;</span>
+                <span
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    color: '#F59E0B',
+                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                    padding: '0.2rem 0.65rem',
+                    borderRadius: 'var(--radius-full)',
+                    border: '1px solid rgba(245, 158, 11, 0.25)',
+                  }}
+                >
+                  Sample Memo: {session.batch_sample_id}
+                </span>
+              </>
+            )}
           </div>
 
           <p className="page-description">
