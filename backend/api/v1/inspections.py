@@ -11,6 +11,7 @@ from backend.reporting.models import InspectionReport
 from backend.reporting.report_service import report_service
 from backend.config import settings
 from backend.services.analysis_service import analysis_service
+from backend.image_quality.validation import detect_image_format_from_magic_bytes, get_canonical_mime_type
 
 router = APIRouter()
 
@@ -138,7 +139,9 @@ async def create_inspection(
             )
 
         analyzed_images.append(inspection_image)
-        file_contents_list.append((image_id, contents, file.content_type or "image/jpeg"))
+        detected_fmt = detect_image_format_from_magic_bytes(contents)
+        canonical_mime = get_canonical_mime_type(detected_fmt) if detected_fmt else (file.content_type or "image/jpeg")
+        file_contents_list.append((image_id, contents, canonical_mime))
 
     # Aggregate session findings across all uploaded packaging panels
     try:
@@ -403,6 +406,13 @@ async def add_inspection_images(
                 message=f"Uploaded file '{file.filename or idx}' is empty.",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
+        if len(contents) > settings.MAX_UPLOAD_SIZE_BYTES:
+            raise InspectionStageError(
+                stage="upload",
+                error_code="PAYLOAD_TOO_LARGE",
+                message=f"Uploaded file '{file.filename or idx}' exceeds maximum size limit of {settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)}MB.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         raw_panel = panel_list[idx] if idx < len(panel_list) else None
         panel_type = _parse_panel(raw_panel)
@@ -427,7 +437,9 @@ async def add_inspection_images(
             )
 
         new_analyzed_images.append(inspection_image)
-        file_contents_list.append((image_id, contents, file.content_type or "image/jpeg"))
+        detected_fmt = detect_image_format_from_magic_bytes(contents)
+        canonical_mime = get_canonical_mime_type(detected_fmt) if detected_fmt else (file.content_type or "image/jpeg")
+        file_contents_list.append((image_id, contents, canonical_mime))
 
     # Combine existing + new images
     all_images = existing_images + new_analyzed_images
