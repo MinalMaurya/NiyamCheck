@@ -20,3 +20,4 @@ python-jose[cryptography]
 # paddlepaddle>=2.6.0
 # paddleocr>=2.7.3
 # pytesseract>=0.3.10
+SQLAlchemy>=2.0.0
