@@ -15,6 +15,8 @@ import {
   Settings as SettingsIcon,
   Sun,
   Moon,
+  Building2,
+  Package,
 } from 'lucide-react';
 
 export function Navbar({
@@ -34,6 +36,8 @@ export function Navbar({
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'new_inspection', label: 'New Inspection', icon: PlusCircle },
     { id: 'history', label: 'History', icon: History },
+    { id: 'vendor_dashboard', label: 'Vendor Portal', icon: Building2 },
+    { id: 'vendor_products', label: 'Products', icon: Package },
     { id: 'legal_search', label: 'Legal Search', icon: Search },
     { id: 'legal_sources', label: 'Legal Sources', icon: BookOpen },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
@@ -50,6 +54,13 @@ export function Navbar({
     } else if (onInstallPwa) {
       onInstallPwa();
     }
+  };
+
+  const isTabActive = (itemId) => {
+    if (activeTab === itemId) return true;
+    if (itemId === 'vendor_products' && activeTab === 'vendor_product_details') return true;
+    if (itemId === 'vendor_dashboard' && (activeTab === 'vendor_check' || activeTab === 'vendor_findings' || activeTab === 'vendor_history')) return true;
+    return false;
   };
 
   return (
@@ -73,10 +84,7 @@ export function Navbar({
           <div className="brand-title-wrap">
             <div className="brand-name">
               <span>NiyamCheck</span>
-              {/* <span style={{ fontSize: '0.85rem', color: '#93C5FD', fontWeight: 500 }}>नियमचेक</span> */}
-              {/* <span className="brand-sih-badge">SIH26034</span> */}
             </div>
-            {/* <div className="brand-subtitle">Legal Metrology Compliance &bull; CodeHexa</div> */}
           </div>
         </div>
 
@@ -84,7 +92,7 @@ export function Navbar({
         <nav className="nav-links desktop-only" role="navigation" aria-label="Desktop Navigation">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isActive = isTabActive(item.id);
             return (
               <button
                 key={item.id}
@@ -172,7 +180,7 @@ export function Navbar({
         <div className="mobile-drawer-menu" role="menu">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const isActive = isTabActive(item.id);
             return (
               <button
                 key={item.id}

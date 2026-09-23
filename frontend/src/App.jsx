@@ -11,6 +11,12 @@ import { History } from './pages/History';
 import { LegalSearch } from './pages/LegalSearch';
 import { LegalSources } from './pages/LegalSources';
 import { Settings } from './pages/Settings';
+import { VendorDashboard } from './pages/vendor/VendorDashboard';
+import { VendorProducts } from './pages/vendor/VendorProducts';
+import { ProductDetails } from './pages/vendor/ProductDetails';
+import { VendorCheck } from './pages/vendor/VendorCheck';
+import { VendorFindings } from './pages/vendor/VendorFindings';
+import { VendorHistory } from './pages/vendor/VendorHistory';
 import { createInspection } from './api/inspections';
 import { createDemoPackageFiles } from './api/sampleData';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
@@ -47,6 +53,25 @@ export function App() {
 
   const { isFullyConnected: isOnline } = useNetworkStatus();
   const { isInstallable, promptInstall } = usePwaInstall();
+
+  const [selectedProductId, setSelectedProductId] = useState(null);
+  const [selectedProductForCheck, setSelectedProductForCheck] = useState(null);
+  const [selectedVendorInspectionId, setSelectedVendorInspectionId] = useState(null);
+
+  const handleOpenVendorInspection = (inspectionId) => {
+    setSelectedVendorInspectionId(inspectionId);
+    setActiveTab('vendor_findings');
+  };
+
+  const handleVendorInspectionCompleted = (inspectionId) => {
+    setSelectedVendorInspectionId(inspectionId);
+    setActiveTab('vendor_findings');
+  };
+
+  const handleStartCheckForProduct = (product) => {
+    setSelectedProductForCheck(product);
+    setActiveTab('vendor_check');
+  };
 
   const handleOpenInspection = (inspectionId) => {
     setSelectedInspectionId(inspectionId);
@@ -121,6 +146,56 @@ export function App() {
         {activeTab === 'history' && (
           <History
             onOpenInspection={handleOpenInspection}
+            onNavigate={setActiveTab}
+          />
+        )}
+
+        {activeTab === 'vendor_dashboard' && (
+          <VendorDashboard
+            onNavigate={setActiveTab}
+            onSelectProduct={setSelectedProductId}
+            onOpenInspection={handleOpenVendorInspection}
+          />
+        )}
+
+        {activeTab === 'vendor_products' && (
+          <VendorProducts
+            onNavigate={setActiveTab}
+            onSelectProduct={setSelectedProductId}
+            onStartCheckForProduct={handleStartCheckForProduct}
+          />
+        )}
+
+        {activeTab === 'vendor_product_details' && (
+          <ProductDetails
+            productId={selectedProductId}
+            onBack={() => setActiveTab('vendor_products')}
+            onNavigate={setActiveTab}
+            onStartCheckForProduct={handleStartCheckForProduct}
+            onOpenInspection={handleOpenVendorInspection}
+          />
+        )}
+
+        {activeTab === 'vendor_check' && (
+          <VendorCheck
+            initialProduct={selectedProductForCheck}
+            onInspectionCompleted={handleVendorInspectionCompleted}
+            onNavigate={setActiveTab}
+          />
+        )}
+
+        {activeTab === 'vendor_findings' && (
+          <VendorFindings
+            inspectionId={selectedVendorInspectionId || selectedInspectionId}
+            onBack={() => setActiveTab('vendor_dashboard')}
+            onNavigate={setActiveTab}
+            onRecheckProduct={handleStartCheckForProduct}
+          />
+        )}
+
+        {activeTab === 'vendor_history' && (
+          <VendorHistory
+            onOpenInspection={handleOpenVendorInspection}
             onNavigate={setActiveTab}
           />
         )}

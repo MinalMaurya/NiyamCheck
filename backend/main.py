@@ -18,6 +18,7 @@ from backend.exceptions import InspectionStageError
 from backend.api.v1.analyze import router as analyze_router
 from backend.api.v1.inspections import router as inspections_router
 from backend.api.v1.legal import router as legal_router
+from backend.api.v1.products import router as products_router
 
 try:
     init_db()
@@ -112,6 +113,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 app.include_router(analyze_router, prefix=f"{settings.API_V1_STR}/analyze", tags=["Analysis"])
 app.include_router(inspections_router, prefix=f"{settings.API_V1_STR}/inspections", tags=["Inspections"])
 app.include_router(legal_router, prefix=f"{settings.API_V1_STR}/legal", tags=["Legal Knowledge Base"])
+app.include_router(products_router, prefix=f"{settings.API_V1_STR}/products", tags=["Products & Vendor"])
 
 
 @app.get("/", tags=["Root"])
@@ -125,6 +127,7 @@ async def root():
             "single_image": f"{settings.API_V1_STR}/analyze/image",
             "inspections": f"{settings.API_V1_STR}/inspections",
             "legal": f"{settings.API_V1_STR}/legal",
+            "products": f"{settings.API_V1_STR}/products",
         },
         "docs_url": "/docs",
         "docs": "/docs",
