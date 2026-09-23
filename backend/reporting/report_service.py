@@ -1,5 +1,5 @@
 from typing import Dict, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 from backend.inspections.models import InspectionSession
 from backend.reporting.models import InspectionReport
 from backend.reporting.hasher import compute_integrity_hash
@@ -138,7 +138,7 @@ class ReportService:
 
         return InspectionReport(
             inspection_id=session.inspection_id,
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             overall_status=session.status,
             summary=session.summary,
             image_count=len(session.images),
@@ -156,6 +156,16 @@ class ReportService:
             evidence=session.evidence,
             limitations=self.DEFAULT_LIMITATIONS,
             integrity_hash=integrity_hash,
+            officer_name=getattr(session, "officer_name", None),
+            officer_id=getattr(session, "officer_id", None),
+            officer_notes=getattr(session, "officer_notes", None),
+            finding_reviews=getattr(session, "finding_reviews", {}),
+            final_verdict=getattr(session, "final_verdict", None),
+            is_finalized=getattr(session, "is_finalized", False),
+            finalized_at=getattr(session, "finalized_at", None),
+            establishment_name=getattr(session, "establishment_name", None),
+            sampling_location=getattr(session, "sampling_location", None),
+            batch_sample_id=getattr(session, "batch_sample_id", None),
         )
 
     def generate_pdf(self, session: InspectionSession) -> bytes:

@@ -48,6 +48,8 @@ import { draftStore } from '../storage/draftStore';
 import { StatusBadge } from '../components/StatusBadge';
 import { ImageViewer } from '../components/ImageViewer';
 import { LegalBasisCard } from '../components/LegalBasisCard';
+import { OfficerReviewPanel } from '../components/OfficerReviewPanel';
+import { useAuth } from '../context/AuthContext';
 import { InspectionCoverageCard } from '../components/InspectionCoverageCard';
 
 // Plain-language explanations of codified Legal Metrology requirements
@@ -120,10 +122,11 @@ const STANDARD_PANELS = [
 ];
 
 export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
+  const { isOfficer } = useAuth();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('consumer'); // 'consumer' | 'images' | 'fields' | 'legal'
+  const [activeTab, setActiveTab] = useState(() => (isOfficer ? 'officer' : 'consumer')); // 'consumer' | 'images' | 'fields' | 'legal' | 'officer'
   const [selectedEvidence, setSelectedEvidence] = useState(null);
   const [findingFilter, setFindingFilter] = useState('ALL'); // 'ALL' | 'PASS' | 'REVIEW' | 'POTENTIAL_ISSUE' | 'NOT_VERIFIABLE'
   
@@ -715,6 +718,42 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
             >
               Category: {session.product_category || 'Packaged Commodity'}
             </span>
+            {(session.establishment_name || session.sampling_location) && (
+              <>
+                <span style={{ color: 'var(--border-bright)' }}>&bull;</span>
+                <span
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    color: '#60A5FA',
+                    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                    padding: '0.2rem 0.65rem',
+                    borderRadius: 'var(--radius-full)',
+                    border: '1px solid rgba(59, 130, 246, 0.25)',
+                  }}
+                >
+                  Premises: {session.establishment_name || 'Retail Store'}{session.sampling_location ? ` • ${session.sampling_location}` : ''}
+                </span>
+              </>
+            )}
+            {session.batch_sample_id && (
+              <>
+                <span style={{ color: 'var(--border-bright)' }}>&bull;</span>
+                <span
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    color: '#F59E0B',
+                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                    padding: '0.2rem 0.65rem',
+                    borderRadius: 'var(--radius-full)',
+                    border: '1px solid rgba(245, 158, 11, 0.25)',
+                  }}
+                >
+                  Sample Memo: {session.batch_sample_id}
+                </span>
+              </>
+            )}
           </div>
 
           <p className="page-description">
@@ -882,6 +921,29 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
           onClick={() => setActiveTab('legal')}
         >
           Authoritative Legal Provisions
+        </button>
+        <button
+          type="button"
+          className={`tab-btn ${activeTab === 'officer' ? 'active' : ''}`}
+          onClick={() => setActiveTab('officer')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+        >
+          <ShieldAlert size={14} style={{ color: session.is_finalized ? '#A78BFA' : 'var(--primary-500)' }} />
+          <span>Officer Workbench</span>
+          {session.is_finalized && (
+            <span
+              style={{
+                fontSize: '0.68rem',
+                padding: '0.1rem 0.45rem',
+                borderRadius: 'var(--radius-full)',
+                background: 'rgba(139, 92, 246, 0.2)',
+                color: '#A78BFA',
+                fontWeight: 600,
+              }}
+            >
+              Signed
+            </span>
+          )}
         </button>
       </div>
 
@@ -1752,6 +1814,11 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
             ))}
           </div>
         </div>
+      )}
+
+      {/* TAB 5: Legal Metrology Officer Review & Statutory Finalization */}
+      {activeTab === 'officer' && (
+        <OfficerReviewPanel session={session} onSessionUpdated={setSession} />
       )}
 
       {/* MODAL: Visual Evidence Modal */}

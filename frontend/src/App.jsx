@@ -5,6 +5,7 @@ import { Footer } from './components/Footer';
 import { SystemInfoModal } from './components/SystemInfoModal';
 import { InstallAppModal } from './components/InstallAppModal';
 import { Dashboard } from './pages/Dashboard';
+import { OfficerDashboard } from './pages/OfficerDashboard';
 import { ConsumerDashboard } from './pages/ConsumerDashboard';
 import { ConsumerCheck } from './pages/ConsumerCheck';
 import { ConsumerProcessing } from './pages/ConsumerProcessing';
@@ -15,6 +16,7 @@ import { ConsumerHistory } from './pages/ConsumerHistory';
 import { CreateInspection } from './pages/CreateInspection';
 import { InspectionResults } from './pages/InspectionResults';
 import { History } from './pages/History';
+import { OfficerHistory } from './pages/OfficerHistory';
 import { LegalSearch } from './pages/LegalSearch';
 import { LegalSources } from './pages/LegalSources';
 import { Settings } from './pages/Settings';
@@ -22,8 +24,9 @@ import { createInspection } from './api/inspections';
 import { createDemoPackageFiles } from './api/sampleData';
 import { useNetworkStatus } from './hooks/useNetworkStatus';
 import { usePwaInstall } from './hooks/usePwaInstall';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
-export function App() {
+function AppInner() {
   // Portal Mode: 'consumer' (default) vs 'officer'
   const [portalMode, setPortalMode] = useState(() => {
     try {
@@ -36,7 +39,6 @@ export function App() {
   const [activeTab, setActiveTab] = useState(() => {
     return portalMode === 'consumer' ? 'consumer_dashboard' : 'dashboard';
   });
-
   const [selectedInspectionId, setSelectedInspectionId] = useState(null);
   const [activeProductInspectionId, setActiveProductInspectionId] = useState(null);
   const [pendingCheckData, setPendingCheckData] = useState(null);
@@ -44,12 +46,14 @@ export function App() {
   const [isSystemInfoOpen, setIsSystemInfoOpen] = useState(false);
   const [isInstallAppOpen, setIsInstallAppOpen] = useState(false);
 
-  // Theme Management (Default: 'light')
+  const { isOfficer } = useAuth();
+
+  // Theme Management (Default: 'dark')
   const [theme, setTheme] = useState(() => {
     try {
-      return localStorage.getItem('niyamcheck_theme') || 'light';
+      return localStorage.getItem('niyamcheck_theme') || 'dark';
     } catch {
-      return 'light';
+      return 'dark';
     }
   });
 
@@ -212,11 +216,19 @@ export function App() {
 
         {/* Officer Workbench Pages */}
         {activeTab === 'dashboard' && (
-          <Dashboard
-            onNavigate={setActiveTab}
-            onOpenInspection={handleOpenInspection}
-            onLoadDemo={handleLoadDemo}
-          />
+          isOfficer ? (
+            <OfficerDashboard
+              onNavigate={setActiveTab}
+              onOpenInspection={handleOpenInspection}
+              onLoadDemo={handleLoadDemo}
+            />
+          ) : (
+            <Dashboard
+              onNavigate={setActiveTab}
+              onOpenInspection={handleOpenInspection}
+              onLoadDemo={handleLoadDemo}
+            />
+          )
         )}
 
         {activeTab === 'new_inspection' && (
@@ -232,10 +244,17 @@ export function App() {
         )}
 
         {activeTab === 'history' && (
-          <History
-            onOpenInspection={handleOpenInspection}
-            onNavigate={setActiveTab}
-          />
+          isOfficer ? (
+            <OfficerHistory
+              onOpenInspection={handleOpenInspection}
+              onNavigate={setActiveTab}
+            />
+          ) : (
+            <History
+              onOpenInspection={handleOpenInspection}
+              onNavigate={setActiveTab}
+            />
+          )
         )}
 
         {activeTab === 'legal_search' && <LegalSearch />}
@@ -266,6 +285,14 @@ export function App() {
 
       <Footer />
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
   );
 }
 

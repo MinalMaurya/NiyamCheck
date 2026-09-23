@@ -15,12 +15,20 @@ import {
   FolderOpen,
   Trash2,
   RotateCcw,
+  Building2,
+  MapPin,
+  Tag,
+  ShieldCheck,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { createInspection } from '../api/inspections';
 import { createDemoPackageFiles } from '../api/sampleData';
 import { draftStore } from '../storage/draftStore';
 import { validateImageFile, optimizeImageForUpload } from '../utils/imageUtils';
+import { useAuth } from '../context/AuthContext';
 import { InspectionCoverageCard } from '../components/InspectionCoverageCard';
+
 
 const PANEL_OPTIONS = [
   { value: 'FRONT', label: 'Front Panel (Principal Display)' },
@@ -33,6 +41,7 @@ const PANEL_OPTIONS = [
 ];
 
 export function CreateInspection({ onInspectionCreated, isOnline = true }) {
+  const { currentUser, isOfficer } = useAuth();
   const [images, setImages] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitPhase, setSubmitPhase] = useState(0); // 0: Idle, 1: Uploading, 2: Analyzing, 3: Completed
@@ -41,6 +50,12 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
   const [showDraftsDrawer, setShowDraftsDrawer] = useState(false);
   const [activeDraftId, setActiveDraftId] = useState(null);
   const [saveDraftFeedback, setSaveDraftFeedback] = useState(null);
+
+  // Officer inspection premise & sampling state
+  const [establishmentName, setEstablishmentName] = useState('');
+  const [samplingLocation, setSamplingLocation] = useState('');
+  const [batchSampleId, setBatchSampleId] = useState('');
+  const [showPremiseCard, setShowPremiseCard] = useState(true);
 
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
@@ -146,8 +161,13 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
 
       const saved = await draftStore.saveDraft({
         draftId: activeDraftId,
-        title: `Package Inspection (${images.length} panels)`,
+        title: establishmentName
+          ? `${establishmentName} (${images.length} panels)`
+          : `Package Inspection (${images.length} panels)`,
         images: serializedImages,
+        establishmentName,
+        samplingLocation,
+        batchSampleId,
       });
 
       setActiveDraftId(saved.draftId);
@@ -174,6 +194,9 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
 
     setImages(restoredImages);
     setActiveDraftId(draft.draftId);
+    if (draft.establishmentName) setEstablishmentName(draft.establishmentName);
+    if (draft.samplingLocation) setSamplingLocation(draft.samplingLocation);
+    if (draft.batchSampleId) setBatchSampleId(draft.batchSampleId);
     setShowDraftsDrawer(false);
     setError(null);
   };
@@ -231,6 +254,11 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
       const session = await createInspection({
         files: rawFiles,
         panels: panelTypes,
+        establishmentName: isOfficer ? establishmentName.trim() : '',
+        samplingLocation: isOfficer ? samplingLocation.trim() : '',
+        batchSampleId: isOfficer ? batchSampleId.trim() : '',
+        officerName: isOfficer ? (currentUser?.name || '') : '',
+        officerId: isOfficer ? (currentUser?.id || currentUser?.badge || '') : '',
       });
 
       // If this was from a draft, delete the draft upon successful submission
@@ -519,6 +547,141 @@ export function CreateInspection({ onInspectionCreated, isOnline = true }) {
       ) : (
         /* Image Capture & Management View */
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {/* Officer Enforcement & Premises Context (Only rendered for Officers) */}
+          {isOfficer && (
+            <div
+              className="card"
+              style={{
+                backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                borderRadius: 'var(--radius-md)',
+                padding: '1.15rem 1.25rem',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                }}
+                onClick={() => setShowPremiseCard(!showPremiseCard)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <ShieldCheck size={20} style={{ color: 'var(--primary-500)' }} />
+                  <div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Inspected Establishment & Sampling Context (Legal Metrology Record)
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                      Inspecting Authority: <strong>{currentUser?.name || 'Inspector'}</strong> &bull; {currentUser?.badge || 'LM-OFFICER'}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  style={{ padding: '0.25rem 0.5rem' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowPremiseCard(!showPremiseCard);
+                  }}
+                  title="Toggle Premise Fields"
+                >
+                  {showPremiseCard ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+              </div>
+
+              {showPremiseCard && (
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                    gap: '1rem',
+                    marginTop: '1rem',
+                    paddingTop: '1rem',
+                    borderTop: '1px dashed rgba(16, 185, 129, 0.25)',
+                  }}
+                >
+                  <div>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        color: 'var(--text-secondary)',
+                        marginBottom: '0.35rem',
+                      }}
+                    >
+                      <Building2 size={13} style={{ color: 'var(--primary-500)' }} />
+                      Target Establishment / Store / Packer
+                    </label>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="e.g. Apex Hypermarket Ltd, Dadar"
+                      value={establishmentName}
+                      onChange={(e) => setEstablishmentName(e.target.value)}
+                      style={{ fontSize: '0.85rem' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        color: 'var(--text-secondary)',
+                        marginBottom: '0.35rem',
+                      }}
+                    >
+                      <MapPin size={13} style={{ color: 'var(--primary-500)' }} />
+                      Sampling Location / Jurisdiction
+                    </label>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="e.g. Mumbai Suburban Division, Ward G/N"
+                      value={samplingLocation}
+                      onChange={(e) => setSamplingLocation(e.target.value)}
+                      style={{ fontSize: '0.85rem' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        color: 'var(--text-secondary)',
+                        marginBottom: '0.35rem',
+                      }}
+                    >
+                      <Tag size={13} style={{ color: 'var(--primary-500)' }} />
+                      Sample Memo / Seizure Ref ID (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="e.g. MEMO-2026/09-042"
+                      value={batchSampleId}
+                      onChange={(e) => setBatchSampleId(e.target.value)}
+                      style={{ fontSize: '0.85rem' }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Mobile-Friendly Capture & Dropzone Options */}
           <div
             className="card"

@@ -4,7 +4,16 @@ export async function checkSystemHealth() {
   return await api.get('/api/v1/health');
 }
 
-export async function createInspection({ files, panels = [], inspectionId = null }) {
+export async function createInspection({
+  files,
+  panels = [],
+  inspectionId = null,
+  establishmentName = null,
+  samplingLocation = null,
+  batchSampleId = null,
+  officerName = null,
+  officerId = null,
+}) {
   const formData = new FormData();
 
   files.forEach((file) => {
@@ -17,6 +26,21 @@ export async function createInspection({ files, panels = [], inspectionId = null
 
   if (inspectionId) {
     formData.append('inspection_id', inspectionId);
+  }
+  if (establishmentName) {
+    formData.append('establishment_name', establishmentName);
+  }
+  if (samplingLocation) {
+    formData.append('sampling_location', samplingLocation);
+  }
+  if (batchSampleId) {
+    formData.append('batch_sample_id', batchSampleId);
+  }
+  if (officerName) {
+    formData.append('officer_name', officerName);
+  }
+  if (officerId) {
+    formData.append('officer_id', officerId);
   }
 
   return await api.postForm('/api/v1/inspections', formData);
@@ -78,4 +102,29 @@ export async function addInspectionImages({ inspectionId, files, panels = [] }) 
 export async function deleteInspectionImage(inspectionId, imageId) {
   return await api.delete(`/api/v1/inspections/${encodeURIComponent(inspectionId)}/images/${encodeURIComponent(imageId)}`);
 }
+
+export async function updateOfficerReview(inspectionId, {
+  officerName,
+  officerId,
+  officerNotes,
+  findingReviews,
+  finalVerdict,
+  isFinalized,
+  establishmentName,
+  samplingLocation,
+  batchSampleId,
+}) {
+  return await api.patch(`/api/v1/inspections/${encodeURIComponent(inspectionId)}/review`, {
+    officer_name: officerName,
+    officer_id: officerId,
+    officer_notes: officerNotes,
+    finding_reviews: findingReviews,
+    final_verdict: finalVerdict,
+    is_finalized: isFinalized,
+    establishment_name: establishmentName,
+    sampling_location: samplingLocation,
+    batch_sample_id: batchSampleId,
+  });
+}
+
 
