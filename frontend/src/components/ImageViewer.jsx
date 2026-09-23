@@ -67,6 +67,14 @@ export function ImageViewer({
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [showOverlays, setShowOverlays] = useState(true);
+  const [imageLoadError, setImageLoadError] = useState(false);
+
+  const currentImage = images[activeImageIndex] || images[0];
+
+  // Reset load error when switching images or when image props update
+  useEffect(() => {
+    setImageLoadError(false);
+  }, [activeImageIndex, currentImage?.image_id, currentImage?.preview, currentImage?.image_url]);
 
   // Sync active image with selectedEvidence panel or image_id
   useEffect(() => {
@@ -99,8 +107,6 @@ export function ImageViewer({
       </div>
     );
   }
-
-  const currentImage = images[activeImageIndex] || images[0];
 
   // Resolve Image Source: preview > image_url > canonical endpoint URL
   const imageSrc =
@@ -249,8 +255,9 @@ export function ImageViewer({
             alt={`Package panel ${currentImage.panel || currentImage.image_id}`}
             onError={(e) => {
               e.target.onerror = null;
+              setImageLoadError(true);
               e.target.src =
-                'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect fill="%231f2937" width="400" height="300"/><text fill="%239ca3af" font-family="sans-serif" font-size="14" x="50%" y="50%" text-anchor="middle">Image binary unavailable for offline session</text></svg>';
+                'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect fill="%231f2937" width="400" height="300"/><text fill="%23f87171" font-family="sans-serif" font-weight="600" font-size="14" x="50%" y="46%" text-anchor="middle">Unable to load package image.</text><text fill="%239ca3af" font-family="sans-serif" font-size="12" x="50%" y="58%" text-anchor="middle">Please check connection or re-upload panel photo.</text></svg>';
             }}
           />
 
@@ -337,7 +344,9 @@ export function ImageViewer({
           <strong>Detected Boxes:</strong> {panelEvidence.length}
         </div>
         <div style={{ color: 'var(--text-muted)' }}>
-          {panelEvidence.length > 0 ? (
+          {imageLoadError ? (
+            <span style={{ color: '#F87171', fontWeight: 600 }}>Image load failed &bull; Unable to load package image.</span>
+          ) : panelEvidence.length > 0 ? (
             <span>Normalized coordinates: <code style={{ color: 'var(--status-info-text)' }}>[ymin, xmin, ymax, xmax]</code></span>
           ) : (
             <span>No bounding-box coordinates in current view</span>

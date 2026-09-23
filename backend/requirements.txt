@@ -15,9 +15,10 @@ bcrypt==4.0.1
 email-validator
 python-jose[cryptography]
 
-# Optional OCR / Computer Vision Dependencies (production deployment)
-# opencv-python-headless>=4.9.0
-# paddlepaddle>=2.6.0
-# paddleocr>=2.7.3
+# Computer Vision & Production OCR Dependencies
+opencv-python-headless>=4.9.0
+paddlepaddle>=2.6.0
+paddleocr>=2.7.3
 # pytesseract>=0.3.10
 SQLAlchemy>=2.0.0
+

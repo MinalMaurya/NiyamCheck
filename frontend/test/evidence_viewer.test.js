@@ -145,4 +145,16 @@ describe('Evidence Viewer — Inspection & Bounding Box System Tests', () => {
     assert.ok(cssSrc.includes('.bbox-missing-banner'), 'CSS must define .bbox-missing-banner');
     assert.ok(cssSrc.includes('.viewer-compact'), 'CSS must define .viewer-compact');
   });
+
+  test('ImageViewer renders honest failure message when image binary cannot be loaded', () => {
+    assert.ok(
+      imageViewerSrc.includes('Unable to load package image.'),
+      'ImageViewer must display honest image failure message'
+    );
+    assert.ok(
+      !imageViewerSrc.includes('Image binary unavailable for offline session'),
+      'ImageViewer must not show misleading offline session message'
+    );
+  });
 });
+
