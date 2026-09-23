@@ -3,6 +3,7 @@ from typing import Optional, List
 from PIL import Image
 
 from backend.image_quality.checker import quality_checker
+from backend.image_quality.validation import validate_image_bytes
 from backend.ocr.engine import get_ocr_engine
 from backend.extraction.extractor import field_extractor
 from backend.compliance.rule_engine import compliance_engine
@@ -50,16 +51,12 @@ class AnalysisService:
                 compliance=None,
             )
 
-        try:
-            pil_image = Image.open(io.BytesIO(image_bytes))
-            # Test image reading
-            pil_image.verify()
-            pil_image = Image.open(io.BytesIO(image_bytes))
-        except Exception as exc:
+        is_valid, err_msg, detected_fmt, _ = validate_image_bytes(image_bytes)
+        if not is_valid:
             corrupted_quality = ImageQualityResult(
                 status=ImageQualityStatus.POOR,
                 score=0.0,
-                issues=[f"Invalid or corrupted image format: {str(exc)}"],
+                issues=[f"Invalid or corrupted image format: {err_msg}"],
                 details=None,
             )
             empty_ocr = OCRResult(text="", confidence=0.0, regions=[])
@@ -72,6 +69,7 @@ class AnalysisService:
                 compliance=None,
             )
 
+        pil_image = Image.open(io.BytesIO(image_bytes))
         return self.analyze_pil_image(pil_image, ocr_engine_name=ocr_engine_name)
 
     def analyze_pil_image(
@@ -122,18 +120,25 @@ class AnalysisService:
         panel: PanelType = PanelType.UNKNOWN,
     ) -> InspectionImage:
         """Processes an image for inclusion in a multi-image InspectionSession."""
-        try:
-            pil_image = Image.open(io.BytesIO(image_bytes))
-            pil_image.verify()
-            pil_image = Image.open(io.BytesIO(image_bytes))
-            quality_res = quality_checker.check_image(pil_image)
-        except Exception as exc:
+        is_valid, err_msg, detected_fmt, _ = validate_image_bytes(image_bytes)
+        if not is_valid:
             quality_res = ImageQualityResult(
                 status=ImageQualityStatus.POOR,
                 score=0.0,
-                issues=[f"Corrupted image format: {str(exc)}"],
+                issues=[f"Corrupted image format: {err_msg}"],
             )
             pil_image = Image.new("RGB", (300, 300), color=(128, 128, 128))
+        else:
+            try:
+                pil_image = Image.open(io.BytesIO(image_bytes))
+                quality_res = quality_checker.check_image(pil_image)
+            except Exception:
+                quality_res = ImageQualityResult(
+                    status=ImageQualityStatus.POOR,
+                    score=0.0,
+                    issues=["Corrupted image format: Unable to evaluate packaging image quality."],
+                )
+                pil_image = Image.new("RGB", (300, 300), color=(128, 128, 128))
 
         # 2. Resilient OCR Extraction
         try:

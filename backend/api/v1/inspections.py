@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status, Response
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status, Response, Query
 from pydantic import BaseModel, Field
 
 from backend.exceptions import InspectionStageError
@@ -11,6 +11,7 @@ from backend.reporting.models import InspectionReport
 from backend.reporting.report_service import report_service
 from backend.config import settings
 from backend.services.analysis_service import analysis_service
+from backend.image_quality.validation import detect_image_format_from_magic_bytes, get_canonical_mime_type
 
 router = APIRouter()
 
@@ -138,7 +139,9 @@ async def create_inspection(
             )
 
         analyzed_images.append(inspection_image)
-        file_contents_list.append((image_id, contents, file.content_type or "image/jpeg"))
+        detected_fmt = detect_image_format_from_magic_bytes(contents)
+        canonical_mime = get_canonical_mime_type(detected_fmt) if detected_fmt else (file.content_type or "image/jpeg")
+        file_contents_list.append((image_id, contents, canonical_mime))
 
     # Aggregate session findings across all uploaded packaging panels
     try:
@@ -199,10 +202,43 @@ async def create_inspection(
     "",
     response_model=List[InspectionSession],
     summary="List all Inspection Sessions",
-    description="Returns all packaging inspection sessions stored in the current environment.",
+    description="Returns packaging inspection sessions stored in the current environment with optional filtering and pagination.",
 )
-async def list_inspections():
-    return inspection_store.list_all()
+async def list_inspections(
+    status: Optional[str] = Query(None, description="Filter by inspection status (e.g. COMPLIANT, NON_COMPLIANT, NEEDS_REVIEW)"),
+    category: Optional[str] = Query(None, description="Filter by product category"),
+    search: Optional[str] = Query(None, description="Search keyword across inspection ID, category, or summary"),
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of sessions to return (1-100)"),
+    offset: int = Query(0, ge=0, description="Offset index for pagination (>=0)"),
+):
+    return inspection_store.list_all(
+        status=status,
+        category=category,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+
+
+class InspectionStatsResponse(BaseModel):
+    total: int = Field(0, description="Total number of non-deleted inspection sessions")
+    compliant: int = Field(0, description="Number of compliant inspection sessions")
+    non_compliant: int = Field(0, description="Number of non-compliant inspection sessions")
+    needs_review: int = Field(0, description="Number of sessions needing review / ambiguous / unverifiable")
+    compliance_rate_pct: float = Field(0.0, description="Compliance rate percentage (0.0 - 100.0)")
+    top_violations: Dict[str, int] = Field(default_factory=dict, description="Frequency map of violated rule IDs")
+    category_breakdown: Dict[str, int] = Field(default_factory=dict, description="Count of inspections per commodity category")
+    finalized_count: int = Field(0, description="Number of officer-signed and finalized inspections")
+
+
+@router.get(
+    "/stats",
+    response_model=InspectionStatsResponse,
+    summary="Get Core Platform & Admin Inspection Statistics",
+    description="Returns aggregated compliance statistics, category distribution, top statutory violations, and officer finalization counts.",
+)
+async def get_inspection_stats():
+    return inspection_store.get_stats()
 
 
 @router.get(
@@ -370,6 +406,13 @@ async def add_inspection_images(
                 message=f"Uploaded file '{file.filename or idx}' is empty.",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
+        if len(contents) > settings.MAX_UPLOAD_SIZE_BYTES:
+            raise InspectionStageError(
+                stage="upload",
+                error_code="PAYLOAD_TOO_LARGE",
+                message=f"Uploaded file '{file.filename or idx}' exceeds maximum size limit of {settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)}MB.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         raw_panel = panel_list[idx] if idx < len(panel_list) else None
         panel_type = _parse_panel(raw_panel)
@@ -394,7 +437,9 @@ async def add_inspection_images(
             )
 
         new_analyzed_images.append(inspection_image)
-        file_contents_list.append((image_id, contents, file.content_type or "image/jpeg"))
+        detected_fmt = detect_image_format_from_magic_bytes(contents)
+        canonical_mime = get_canonical_mime_type(detected_fmt) if detected_fmt else (file.content_type or "image/jpeg")
+        file_contents_list.append((image_id, contents, canonical_mime))
 
     # Combine existing + new images
     all_images = existing_images + new_analyzed_images

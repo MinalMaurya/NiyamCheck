@@ -14,6 +14,7 @@ from backend.app.schemas.pipeline import PipelineAnalysisResponse, ImageMetadata
 from backend.app.cv.iqa.quality_checker import quality_checker
 from backend.app.cv.ocr.factory import get_ocr_engine
 from backend.app.extractors.pipeline_extractor import pipeline_extractor
+from backend.image_quality.validation import validate_image_bytes
 
 router = APIRouter()
 
@@ -51,16 +52,13 @@ async def run_pipeline(
             detail="Uploaded file is empty.",
         )
 
-    try:
-        pil_image = Image.open(io.BytesIO(contents))
-        pil_image.verify()  # Verify integrity
-        # Re-open after verify() because verify() empties the buffer
-        pil_image = Image.open(io.BytesIO(contents))
-    except Exception as exc:
+    is_valid, err_msg, detected_fmt, _ = validate_image_bytes(contents)
+    if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid or corrupted image format: {str(exc)}",
+            detail=f"Invalid or corrupted image format: {err_msg}",
         )
+    pil_image = Image.open(io.BytesIO(contents))
 
     width, height = pil_image.size
     img_meta = ImageMetadata(
