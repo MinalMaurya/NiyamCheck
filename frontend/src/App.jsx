@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { WifiOff } from 'lucide-react';
 import { Navbar } from './components/Navbar';
+import { Sidebar } from './components/Sidebar';
 import { Footer } from './components/Footer';
 import { SystemInfoModal } from './components/SystemInfoModal';
 import { InstallAppModal } from './components/InstallAppModal';
@@ -45,6 +46,34 @@ function AppInner() {
   const [demoLoading, setDemoLoading] = useState(false);
   const [isSystemInfoOpen, setIsSystemInfoOpen] = useState(false);
   const [isInstallAppOpen, setIsInstallAppOpen] = useState(false);
+
+  // Desktop collapsible sidebar state (persisted in localStorage)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('niyamcheck_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Mobile / tablet off-canvas drawer open state
+  const [sidebarOpenMobile, setSidebarOpenMobile] = useState(false);
+
+  const handleToggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('niyamcheck_sidebar_collapsed', String(next));
+      } catch (e) {
+        console.warn('Could not persist sidebar collapsed state:', e);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSidebarMobile = () => {
+    setSidebarOpenMobile((prev) => !prev);
+  };
 
   const { isOfficer } = useAuth();
 
@@ -146,18 +175,34 @@ function AppInner() {
         onOpenInstallApp={() => setIsInstallAppOpen(true)}
         theme={theme}
         onToggleTheme={toggleTheme}
+        onToggleSidebar={handleToggleSidebar}
+        onToggleSidebarMobile={handleToggleSidebarMobile}
+        sidebarCollapsed={sidebarCollapsed}
       />
 
-      {!isOnline && (
-        <div className="offline-banner" role="alert">
-          <WifiOff size={16} />
-          <span>
-            You are currently offline. Saved inspection drafts remain available on this device. Compliance analysis and legal search require a backend connection.
-          </span>
-        </div>
-      )}
+      <div className={`app-body ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+        <Sidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          isCollapsed={sidebarCollapsed}
+          onToggleCollapse={handleToggleSidebar}
+          isOpenMobile={sidebarOpenMobile}
+          onCloseMobile={() => setSidebarOpenMobile(false)}
+          portalMode={portalMode}
+          onTogglePortalMode={handleTogglePortalMode}
+        />
 
-      <main className="main-content" role="main">
+        <div className="app-content-wrapper">
+          {!isOnline && (
+            <div className="offline-banner" role="alert">
+              <WifiOff size={16} />
+              <span>
+                You are currently offline. Saved inspection drafts remain available on this device. Compliance analysis and legal search require a backend connection.
+              </span>
+            </div>
+          )}
+
+          <main className="main-content" role="main">
         {/* Consumer Portal Pages */}
         {activeTab === 'consumer_dashboard' && (
           <ConsumerDashboard
@@ -270,21 +315,23 @@ function AppInner() {
         )}
       </main>
 
-      <SystemInfoModal
-        isOpen={isSystemInfoOpen}
-        onClose={() => setIsSystemInfoOpen(false)}
-        isOnline={isOnline}
-        isPwaInstallable={isInstallable}
-        onInstallPwa={promptInstall}
-      />
-
-      <InstallAppModal
-        isOpen={isInstallAppOpen}
-        onClose={() => setIsInstallAppOpen(false)}
-      />
-
       <Footer />
     </div>
+  </div>
+
+  <SystemInfoModal
+    isOpen={isSystemInfoOpen}
+    onClose={() => setIsSystemInfoOpen(false)}
+    isOnline={isOnline}
+    isPwaInstallable={isInstallable}
+    onInstallPwa={promptInstall}
+  />
+
+  <InstallAppModal
+    isOpen={isInstallAppOpen}
+    onClose={() => setIsInstallAppOpen(false)}
+  />
+</div>
   );
 }
 

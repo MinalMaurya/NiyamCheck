@@ -4,6 +4,7 @@ const ROLES = {
   OFFICER: 'OFFICER',
   CONSUMER: 'CONSUMER',
   VENDOR: 'VENDOR',
+  ADMIN: 'ADMIN',
 };
 
 const DEFAULT_PROFILES = {
@@ -36,6 +37,16 @@ const DEFAULT_PROFILES = {
     jurisdiction: 'Pre-packaged Commodity Production',
     department: 'Packaged Goods Quality Assurance',
     email: 'compliance@vendor.com',
+  },
+  ADMIN: {
+    id: 'ADM-001',
+    name: 'System Administrator',
+    role: 'ADMIN',
+    designation: 'Legal Metrology Central Administrator',
+    badge: 'ADMIN-SYS-01',
+    jurisdiction: 'National Central Portal',
+    department: 'Directorate of Legal Metrology & Standards',
+    email: 'admin.lm@nic.in',
   },
 };
 
@@ -89,6 +100,7 @@ export function AuthProvider({ children }) {
   const isOfficer = role === ROLES.OFFICER;
   const isConsumer = role === ROLES.CONSUMER;
   const isVendor = role === ROLES.VENDOR;
+  const isAdmin = role === ROLES.ADMIN;
 
   const value = {
     role,
@@ -99,6 +111,7 @@ export function AuthProvider({ children }) {
     isOfficer,
     isConsumer,
     isVendor,
+    isAdmin,
     ROLES,
   };
 
@@ -118,6 +131,7 @@ export function useAuth() {
       isOfficer: true,
       isConsumer: false,
       isVendor: false,
+      isAdmin: false,
       ROLES,
     };
   }
