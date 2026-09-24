@@ -48,6 +48,11 @@ class OCRResult(BaseModel):
     text: str = Field(..., description="Concatenated raw OCR text")
     confidence: Optional[float] = Field(None, description="Overall OCR average confidence")
     regions: List[OCRRegion] = Field(default_factory=list, description="Extracted text regions with bounding boxes")
+    word_count: Optional[int] = Field(None, description="Total words detected")
+
+    def model_post_init(self, __context: Any) -> None:
+        if self.word_count is None:
+            self.word_count = len(self.text.split()) if self.text else 0
 
 
 # --- Multimodal Assessment Schemas Addressing the Packaging Research Gap ---

@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     )
 
     # OCR Configuration
-    # Options: "MOCK", "PADDLE", "TESSERACT"
-    OCR_ENGINE: str = "MOCK"
+    # Options: "AUTO", "PADDLE", "TESSERACT", "MOCK"
+    OCR_ENGINE: str = "AUTO"
 
     # Image Quality Assessment (IQA) Thresholds
     IQA_BLUR_THRESHOLD: float = 100.0  # Minimum Laplacian variance for acceptable focus

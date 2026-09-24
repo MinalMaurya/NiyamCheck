@@ -1,5 +1,7 @@
-from typing import List, Optional
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status, Response
+from typing import List, Optional, Dict, Any
+from datetime import datetime, timezone
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, status, Response, Query
+from pydantic import BaseModel, Field
 
 from backend.exceptions import InspectionStageError
 from backend.inspections.models import InspectionSession, PanelType, InspectionImage
@@ -9,6 +11,7 @@ from backend.reporting.models import InspectionReport
 from backend.reporting.report_service import report_service
 from backend.config import settings
 from backend.services.analysis_service import analysis_service
+from backend.image_quality.validation import detect_image_format_from_magic_bytes, get_canonical_mime_type
 
 router = APIRouter()
 
@@ -42,6 +45,26 @@ async def create_inspection(
     inspection_id: Optional[str] = Form(
         None,
         description="Optional pre-assigned inspection ID",
+    ),
+    establishment_name: Optional[str] = Form(
+        None,
+        description="Optional retail premises or warehouse name inspected",
+    ),
+    sampling_location: Optional[str] = Form(
+        None,
+        description="Optional physical sampling location or city",
+    ),
+    batch_sample_id: Optional[str] = Form(
+        None,
+        description="Optional physical sample memo or batch reference ID",
+    ),
+    officer_name: Optional[str] = Form(
+        None,
+        description="Optional inspecting officer name",
+    ),
+    officer_id: Optional[str] = Form(
+        None,
+        description="Optional inspecting officer badge or ID",
     ),
 ):
     if not files:
@@ -116,7 +139,9 @@ async def create_inspection(
             )
 
         analyzed_images.append(inspection_image)
-        file_contents_list.append((image_id, contents, file.content_type or "image/jpeg"))
+        detected_fmt = detect_image_format_from_magic_bytes(contents)
+        canonical_mime = get_canonical_mime_type(detected_fmt) if detected_fmt else (file.content_type or "image/jpeg")
+        file_contents_list.append((image_id, contents, canonical_mime))
 
     # Aggregate session findings across all uploaded packaging panels
     try:
@@ -144,6 +169,17 @@ async def create_inspection(
         for img in session.images:
             img.image_url = f"/api/v1/inspections/{session.inspection_id}/images/{img.image_id}"
 
+        if establishment_name:
+            session.establishment_name = establishment_name
+        if sampling_location:
+            session.sampling_location = sampling_location
+        if batch_sample_id:
+            session.batch_sample_id = batch_sample_id
+        if officer_name:
+            session.officer_name = officer_name
+        if officer_id:
+            session.officer_id = officer_id
+
         # Persist session to store
         inspection_store.save(session)
     except Exception as store_exc:
@@ -166,10 +202,43 @@ async def create_inspection(
     "",
     response_model=List[InspectionSession],
     summary="List all Inspection Sessions",
-    description="Returns all packaging inspection sessions stored in the current environment.",
+    description="Returns packaging inspection sessions stored in the current environment with optional filtering and pagination.",
 )
-async def list_inspections():
-    return inspection_store.list_all()
+async def list_inspections(
+    status: Optional[str] = Query(None, description="Filter by inspection status (e.g. COMPLIANT, NON_COMPLIANT, NEEDS_REVIEW)"),
+    category: Optional[str] = Query(None, description="Filter by product category"),
+    search: Optional[str] = Query(None, description="Search keyword across inspection ID, category, or summary"),
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of sessions to return (1-100)"),
+    offset: int = Query(0, ge=0, description="Offset index for pagination (>=0)"),
+):
+    return inspection_store.list_all(
+        status=status,
+        category=category,
+        search=search,
+        limit=limit,
+        offset=offset,
+    )
+
+
+class InspectionStatsResponse(BaseModel):
+    total: int = Field(0, description="Total number of non-deleted inspection sessions")
+    compliant: int = Field(0, description="Number of compliant inspection sessions")
+    non_compliant: int = Field(0, description="Number of non-compliant inspection sessions")
+    needs_review: int = Field(0, description="Number of sessions needing review / ambiguous / unverifiable")
+    compliance_rate_pct: float = Field(0.0, description="Compliance rate percentage (0.0 - 100.0)")
+    top_violations: Dict[str, int] = Field(default_factory=dict, description="Frequency map of violated rule IDs")
+    category_breakdown: Dict[str, int] = Field(default_factory=dict, description="Count of inspections per commodity category")
+    finalized_count: int = Field(0, description="Number of officer-signed and finalized inspections")
+
+
+@router.get(
+    "/stats",
+    response_model=InspectionStatsResponse,
+    summary="Get Core Platform & Admin Inspection Statistics",
+    description="Returns aggregated compliance statistics, category distribution, top statutory violations, and officer finalization counts.",
+)
+async def get_inspection_stats():
+    return inspection_store.get_stats()
 
 
 @router.get(
@@ -337,6 +406,13 @@ async def add_inspection_images(
                 message=f"Uploaded file '{file.filename or idx}' is empty.",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
+        if len(contents) > settings.MAX_UPLOAD_SIZE_BYTES:
+            raise InspectionStageError(
+                stage="upload",
+                error_code="PAYLOAD_TOO_LARGE",
+                message=f"Uploaded file '{file.filename or idx}' exceeds maximum size limit of {settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)}MB.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         raw_panel = panel_list[idx] if idx < len(panel_list) else None
         panel_type = _parse_panel(raw_panel)
@@ -361,7 +437,9 @@ async def add_inspection_images(
             )
 
         new_analyzed_images.append(inspection_image)
-        file_contents_list.append((image_id, contents, file.content_type or "image/jpeg"))
+        detected_fmt = detect_image_format_from_magic_bytes(contents)
+        canonical_mime = get_canonical_mime_type(detected_fmt) if detected_fmt else (file.content_type or "image/jpeg")
+        file_contents_list.append((image_id, contents, canonical_mime))
 
     # Combine existing + new images
     all_images = existing_images + new_analyzed_images
@@ -426,3 +504,59 @@ async def delete_inspection_image(inspection_id: str, image_id: str):
 
     inspection_store.save(updated_session)
     return updated_session
+
+
+class OfficerReviewRequest(BaseModel):
+    """Payload for Officer review decisions, observations, and inspection finalization."""
+    officer_name: Optional[str] = Field(None, description="Name of the inspecting officer")
+    officer_id: Optional[str] = Field(None, description="Officer badge or government ID")
+    officer_notes: Optional[str] = Field(None, description="Overall inspection observations or enforcement remarks")
+    finding_reviews: Optional[Dict[str, Any]] = Field(None, description="Per-rule officer review decisions {rule_id: {decision, note}}")
+    final_verdict: Optional[str] = Field(None, description="Final legal metrology determination (e.g. COMPLIANT, NOTICE_ISSUED, PENDING_LAB_TEST)")
+    is_finalized: Optional[bool] = Field(False, description="Whether to finalize and lock the inspection")
+    establishment_name: Optional[str] = Field(None, description="Retail premises or warehouse name inspected")
+    sampling_location: Optional[str] = Field(None, description="Physical sampling location or city")
+    batch_sample_id: Optional[str] = Field(None, description="Physical sample memo or batch reference ID")
+
+
+@router.patch(
+    "/{inspection_id}/review",
+    response_model=InspectionSession,
+    summary="Update Officer Review, Observations, and Finalize Inspection",
+    description="Records inspecting officer field observations, finding review determinations, and final statutory determination.",
+)
+async def update_officer_review(inspection_id: str, payload: OfficerReviewRequest):
+    session = inspection_store.get(inspection_id)
+    if not session:
+        raise InspectionStageError(
+            stage="compliance_check",
+            error_code="SESSION_NOT_FOUND",
+            message=f"Inspection session '{inspection_id}' not found.",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+
+    if payload.officer_name is not None:
+        session.officer_name = payload.officer_name
+    if payload.officer_id is not None:
+        session.officer_id = payload.officer_id
+    if payload.officer_notes is not None:
+        session.officer_notes = payload.officer_notes
+    if payload.finding_reviews is not None:
+        if not hasattr(session, "finding_reviews") or session.finding_reviews is None:
+            session.finding_reviews = {}
+        session.finding_reviews.update(payload.finding_reviews)
+    if payload.final_verdict is not None:
+        session.final_verdict = payload.final_verdict
+    if payload.establishment_name is not None:
+        session.establishment_name = payload.establishment_name
+    if payload.sampling_location is not None:
+        session.sampling_location = payload.sampling_location
+    if payload.batch_sample_id is not None:
+        session.batch_sample_id = payload.batch_sample_id
+    if payload.is_finalized:
+        session.is_finalized = True
+        session.finalized_at = datetime.now(timezone.utc)
+
+    inspection_store.save(session)
+    return session
+

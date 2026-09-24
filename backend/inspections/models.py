@@ -1,5 +1,5 @@
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
@@ -34,6 +34,36 @@ class InspectionImage(BaseModel):
     compliance: ComplianceResult
     evidence: List[EvidenceItem] = Field(default_factory=list)
     image_url: Optional[str] = Field(None, description="Direct endpoint to fetch packaging image file")
+    panel_type: Optional[str] = Field(None, description="String representation of panel type for client convenience")
+    upload_status: str = Field("captured", description="Image capture and upload status (captured, uploaded, stored)")
+    ocr_status: str = Field("completed", description="OCR processing status (completed, empty, pending, failed)")
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.panel_type:
+            self.panel_type = self.panel.value if hasattr(self.panel, "value") else str(self.panel)
+
+
+class PanelCoverageItem(BaseModel):
+    panel: PanelType
+    panel_name: str
+    is_captured: bool = False
+    image_id: Optional[str] = None
+    upload_status: Optional[str] = None
+    ocr_status: Optional[str] = None
+    word_count: int = 0
+    confidence: float = 0.0
+    expected_declarations: List[str] = Field(default_factory=list)
+
+
+class InspectionCoverage(BaseModel):
+    total_panels_expected: int = 6
+    panels_captured: int = 0
+    coverage_percentage: float = 0.0
+    is_complete: bool = False
+    panels: List[PanelCoverageItem] = Field(default_factory=list)
+    captured_panels: List[str] = Field(default_factory=list)
+    missing_panels: List[str] = Field(default_factory=list)
+    summary: str = ""
 
 
 class InspectionSession(BaseModel):
@@ -42,7 +72,7 @@ class InspectionSession(BaseModel):
     Holds single or multi-angle photos with aggregated findings and evidence.
     """
     inspection_id: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     product_category: Optional[str] = Field("Packaged Food", description="Detected or assigned packaged product category")
     images: List[InspectionImage] = Field(default_factory=list)
     combined_fields: ExtractedFields
@@ -55,4 +85,16 @@ class InspectionSession(BaseModel):
     review: int = Field(0, description="Requirements needing review / ambiguous / single-panel unobserved")
     potential_issues: int = Field(0, description="Potential issues / statutory non-compliances")
     findings: List[Any] = Field(default_factory=list, description="Detailed findings list for UI and reporting")
+    officer_notes: Optional[str] = Field(None, description="Officer observations and field notes")
+    officer_name: Optional[str] = Field(None, description="Assigned inspecting officer name")
+    officer_id: Optional[str] = Field(None, description="Inspecting officer badge or ID")
+    finding_reviews: Dict[str, Any] = Field(default_factory=dict, description="Officer review decisions per rule ID")
+    final_verdict: Optional[str] = Field(None, description="Officer final enforcement verdict")
+    is_finalized: bool = Field(False, description="Whether the inspection has been signed and finalized by an officer")
+    finalized_at: Optional[datetime] = Field(None, description="Timestamp of officer finalization")
+    establishment_name: Optional[str] = Field(None, description="Retail store, warehouse, or premises inspected")
+    sampling_location: Optional[str] = Field(None, description="Physical location or city of inspection")
+    batch_sample_id: Optional[str] = Field(None, description="Physical field sample reference or seizure memo ID")
+    coverage: Optional[InspectionCoverage] = Field(None, description="Packaging panel inspection evidence coverage")
+
 

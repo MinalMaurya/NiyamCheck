@@ -434,7 +434,7 @@ export function Settings({ currentTheme = 'dark', onThemeChange, isOnline = true
       {/* SECTION 6: DANGER ZONE */}
       <div className="settings-section-card danger-zone">
         <div className="settings-section-header">
-          <AlertTriangle size={20} style={{ color: '#EF4444' }} />
+          <AlertTriangle size={20} style={{ color: 'var(--status-fail)' }} />
           <div>
             <h2>Danger Zone</h2>
             <p>Irreversible actions for local browser cache and data</p>
@@ -444,11 +444,11 @@ export function Settings({ currentTheme = 'dark', onThemeChange, isOnline = true
         <div className="settings-rows-list">
           <div className="setting-row">
             <div className="setting-info">
-              <div className="setting-icon-box" style={{ color: '#EF4444' }}>
+              <div className="setting-icon-box" style={{ color: 'var(--status-fail)' }}>
                 <Trash2 size={18} />
               </div>
               <div>
-                <span className="setting-title" style={{ color: '#EF4444' }}>
+                <span className="setting-title" style={{ color: 'var(--status-fail)' }}>
                   Reset Local Storage & Drafts
                 </span>
                 <span className="setting-desc">

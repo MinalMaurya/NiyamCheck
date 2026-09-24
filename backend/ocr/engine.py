@@ -77,16 +77,24 @@ class TesseractEngine(BaseOCREngine):
 
 
 class PaddleEngine(BaseOCREngine):
-    """PaddleOCR adapter."""
+    """PaddleOCR adapter for production packaging inspection."""
+
+    _ocr_instance = None
+    _init_attempted = False
 
     def __init__(self):
-        try:
-            from paddleocr import PaddleOCR
-            self._ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
-            self._available = True
-        except (ImportError, Exception):
-            self._ocr = None
-            self._available = False
+        self._ensure_initialized()
+
+    @classmethod
+    def _ensure_initialized(cls):
+        if cls._ocr_instance is None and not cls._init_attempted:
+            cls._init_attempted = True
+            try:
+                from paddleocr import PaddleOCR
+                cls._ocr_instance = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
+            except Exception as exc:
+                logger.warning(f"PaddleOCR initialization failed: {exc}")
+                cls._ocr_instance = None
 
     @property
     def name(self) -> str:
@@ -94,39 +102,66 @@ class PaddleEngine(BaseOCREngine):
 
     @property
     def is_available(self) -> bool:
-        return self._available
+        return self._ocr_instance is not None
 
     def extract_text(self, image: Image.Image) -> OCRResult:
-        if not self._available:
-            raise RuntimeError("PaddleOCR is not installed.")
+        if not self.is_available or self._ocr_instance is None:
+            raise RuntimeError("PaddleOCR is not installed or failed to initialize.")
 
         img_np = np.array(image.convert("RGB"))
         height, width = img_np.shape[:2]
-        results = self._ocr.ocr(img_np, cls=True)
+        if height <= 0 or width <= 0:
+            return OCRResult(text="", confidence=0.0, regions=[])
+
+        try:
+            results = self._ocr_instance.ocr(img_np, cls=True)
+        except Exception as exc:
+            logger.error(f"PaddleOCR extraction failed on image: {exc}")
+            return OCRResult(text="", confidence=0.0, regions=[])
 
         regions: List[OCRRegion] = []
         text_lines: List[str] = []
         conf_sum = 0.0
 
-        if results and results[0]:
+        if results and len(results) > 0 and results[0]:
             for line in results[0]:
-                points, (text, conf) = line
-                xs = [p[0] for p in points]
-                ys = [p[1] for p in points]
-                ymin = max(0.0, min(ys) / height)
-                xmin = max(0.0, min(xs) / width)
-                ymax = min(1.0, max(ys) / height)
-                xmax = min(1.0, max(xs) / width)
+                if not line or len(line) < 2:
+                    continue
+                try:
+                    points, text_info = line[0], line[1]
+                    if isinstance(text_info, (tuple, list)) and len(text_info) >= 2:
+                        text, conf = str(text_info[0]).strip(), float(text_info[1])
+                    elif isinstance(text_info, str):
+                        text, conf = text_info.strip(), 1.0
+                    else:
+                        continue
 
-                regions.append(
-                    OCRRegion(
-                        text=text.strip(),
-                        confidence=round(float(conf), 2),
-                        box=[round(ymin, 4), round(xmin, 4), round(ymax, 4), round(xmax, 4)],
+                    if not text:
+                        continue
+
+                    if not points or len(points) < 4:
+                        continue
+
+                    xs = [float(p[0]) for p in points]
+                    ys = [float(p[1]) for p in points]
+
+                    ymin = max(0.0, min(1.0, min(ys) / height))
+                    xmin = max(0.0, min(1.0, min(xs) / width))
+                    ymax = max(ymin, min(1.0, max(ys) / height))
+                    xmax = max(xmin, min(1.0, max(xs) / width))
+
+                    regions.append(
+                        OCRRegion(
+                            text=text,
+                            confidence=round(conf, 2),
+                            box=[round(ymin, 4), round(xmin, 4), round(ymax, 4), round(xmax, 4)],
+                        )
                     )
-                )
-                text_lines.append(text.strip())
-                conf_sum += float(conf)
+                    text_lines.append(text)
+                    conf_sum += conf
+                except Exception as line_exc:
+                    logger.debug(f"Skipping unparseable PaddleOCR line: {line_exc}")
+                    continue
 
         avg_conf = round(conf_sum / len(regions), 2) if regions else 0.0
 
@@ -135,6 +170,10 @@ class PaddleEngine(BaseOCREngine):
             confidence=avg_conf,
             regions=regions,
         )
+
+    def extract(self, image: Image.Image) -> OCRResult:
+        """Compatibility alias for OCREngine interface."""
+        return self.extract_text(image)
 
 
 class RapidOCREngine(BaseOCREngine):

@@ -48,6 +48,9 @@ import { draftStore } from '../storage/draftStore';
 import { StatusBadge } from '../components/StatusBadge';
 import { ImageViewer } from '../components/ImageViewer';
 import { LegalBasisCard } from '../components/LegalBasisCard';
+import { OfficerReviewPanel } from '../components/OfficerReviewPanel';
+import { useAuth } from '../context/AuthContext';
+import { InspectionCoverageCard } from '../components/InspectionCoverageCard';
 
 // Plain-language explanations of codified Legal Metrology requirements
 const RULE_PLAIN_LANGUAGE = {
@@ -119,10 +122,11 @@ const STANDARD_PANELS = [
 ];
 
 export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
+  const { isOfficer } = useAuth();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('consumer'); // 'consumer' | 'images' | 'fields' | 'legal'
+  const [activeTab, setActiveTab] = useState(() => (isOfficer ? 'officer' : 'consumer')); // 'consumer' | 'images' | 'fields' | 'legal' | 'officer'
   const [selectedEvidence, setSelectedEvidence] = useState(null);
   const [findingFilter, setFindingFilter] = useState('ALL'); // 'ALL' | 'PASS' | 'REVIEW' | 'POTENTIAL_ISSUE' | 'NOT_VERIFIABLE'
   
@@ -268,22 +272,71 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
 
   // Helper to find evidence object for a rule or field
   const findEvidenceForItem = (item) => {
+    if (!item) return null;
     if (item.evidence && typeof item.evidence === 'object' && item.evidence.text) {
       return item.evidence;
     }
-    const byRule = allEvidence.find((ev) => ev.rule_id === item.rule_id);
-    if (byRule) return byRule;
-    const byField = allEvidence.find((ev) => ev.field === item.field || ev.field === item.field_name);
-    if (byField) return byField;
-    // Check images
+    const ruleId = item.rule_id || item.ruleId;
+    const fieldKey = item.field || item.field_name || item.id || item.key;
+
+    // Check allEvidence by rule
+    if (ruleId) {
+      const byRule = allEvidence.find((ev) => ev.rule_id === ruleId);
+      if (byRule) return byRule;
+    }
+
+    // Check allEvidence by field
+    if (fieldKey) {
+      const byField = allEvidence.find((ev) => ev.field === fieldKey);
+      if (byField) return byField;
+    }
+
+    // Check images evidence arrays
     for (const img of images) {
-      if (img.evidence) {
+      if (img.evidence && Array.isArray(img.evidence)) {
         const match = img.evidence.find(
-          (ev) => ev.rule_id === item.rule_id || ev.field === item.field || ev.field === item.field_name
+          (ev) => (ruleId && ev.rule_id === ruleId) || (fieldKey && ev.field === fieldKey)
         );
-        if (match) return { ...match, image_id: img.image_id, panel: img.panel || match.panel };
+        if (match) {
+          return {
+            ...match,
+            image_id: img.image_id,
+            panel: img.panel || match.panel || 'UNKNOWN',
+          };
+        }
       }
     }
+
+    // Check if the finding or item has direct evidence properties (from aggregator or field)
+    const detectedVal =
+      item.detected_value ||
+      item.evidence_text ||
+      (typeof item.evidence === 'string' ? item.evidence : null) ||
+      item.fieldData?.value ||
+      item.value;
+
+    const sourcePanel = item.package_panel || item.fieldData?.source_panel || item.panel;
+    const sourceImageId = item.source_image_id || item.image_id;
+
+    if (detectedVal || sourcePanel || sourceImageId) {
+      const resolvedImg = sourceImageId
+        ? images.find((i) => i.image_id === sourceImageId)
+        : sourcePanel
+        ? images.find((i) => (i.panel || '').toUpperCase() === (sourcePanel || '').toUpperCase())
+        : images[0];
+
+      return {
+        rule_id: ruleId || item.rule_id,
+        field: fieldKey,
+        text: detectedVal || (sourcePanel ? `Declaration on ${sourcePanel} panel` : 'Detected declaration'),
+        detected_value: detectedVal || null,
+        image_id: resolvedImg?.image_id || sourceImageId || images[0]?.image_id,
+        panel: sourcePanel || resolvedImg?.panel || images[0]?.panel || 'UNKNOWN',
+        confidence: item.confidence || item.fieldData?.confidence || 0.85,
+        bounding_box: item.bounding_box || null,
+      };
+    }
+
     return null;
   };
 
@@ -348,7 +401,7 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
         description: 'All verified statutory declarations are clearly present and satisfy codified Legal Metrology requirements.',
         badgeStatus: 'COMPLIANT',
         bannerClass: 'border-pass',
-        bg: 'rgba(6, 78, 59, 0.25)',
+        bg: 'var(--status-pass-bg)',
         border: 'var(--status-pass-border)',
         Icon: CheckCircle2,
       };
@@ -362,7 +415,7 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
             : 'Declarations detected on submitted views appear compliant, but one or more mandatory declarations could not be fully confirmed from the provided angles.',
         badgeStatus: 'PARTIALLY_VERIFIABLE',
         bannerClass: 'border-partial',
-        bg: 'rgba(120, 53, 15, 0.2)',
+        bg: 'var(--status-partial-bg)',
         border: 'var(--status-partial-border)',
         Icon: AlertTriangle,
       };
@@ -373,7 +426,7 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
         description: 'Potential discrepancies with codified Packaged Commodities Rules were identified on the submitted packaging views. Review individual findings below.',
         badgeStatus: 'POTENTIAL_ISSUE',
         bannerClass: 'border-fail',
-        bg: 'rgba(127, 29, 29, 0.25)',
+        bg: 'var(--status-fail-bg)',
         border: 'var(--status-fail-border)',
         Icon: XCircle,
       };
@@ -384,7 +437,7 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
         description: 'Certain packaging declarations require manual inspection or clearer photography to confirm statutory compliance.',
         badgeStatus: 'NEEDS_REVIEW',
         bannerClass: 'border-partial',
-        bg: 'rgba(120, 53, 15, 0.2)',
+        bg: 'var(--status-partial-bg)',
         border: 'var(--status-partial-border)',
         Icon: AlertTriangle,
       };
@@ -394,7 +447,7 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
       description: 'Insufficient readable declaration text could be verified from the submitted packaging photographs.',
       badgeStatus: 'NOT_VERIFIABLE',
       bannerClass: 'border-neutral',
-      bg: 'rgba(55, 65, 81, 0.25)',
+      bg: 'var(--status-neutral-bg)',
       border: 'var(--status-neutral-border)',
       Icon: HelpCircle,
     };
@@ -464,15 +517,27 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
 
   // Evidence Modal trigger
   const handleOpenEvidenceModal = (item) => {
-    const ev = findEvidenceForItem(item);
+    let ev = findEvidenceForItem(item);
     if (!ev) {
-      setSelectedEvidence(null);
-      setActiveTab('images');
-      return;
+      if (images && images.length > 0) {
+        ev = {
+          rule_id: item.rule_id || item.ruleId || 'LM-EVIDENCE',
+          field: item.field || item.id || 'declaration',
+          text: item.detected_value || item.name || 'Packaging Inspection',
+          image_id: images[0].image_id,
+          panel: images[0].panel || 'UNKNOWN',
+          confidence: 0.8,
+          bounding_box: null,
+        };
+      } else {
+        setSelectedEvidence(null);
+        setActiveTab('images');
+        return;
+      }
     }
 
-    const ruleId = item.rule_id || ev.rule_id;
-    const fieldKey = item.field || ev.field;
+    const ruleId = item.rule_id || item.ruleId || ev.rule_id;
+    const fieldKey = item.field || item.field_name || item.id || ev.field;
     const sources = [];
 
     // 1. Primary candidate
@@ -485,7 +550,9 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
     if (item.conflicts && Array.isArray(item.conflicts)) {
       item.conflicts.forEach((c) => {
         if (c.image_id !== ev.image_id || c.value !== ev.text) {
-          const matchingImg = images.find((i) => i.image_id === c.image_id || i.panel === c.panel);
+          const matchingImg = images.find(
+            (i) => i.image_id === c.image_id || (i.panel && c.panel && i.panel.toUpperCase() === c.panel.toUpperCase())
+          );
           sources.push({
             rule_id: ruleId,
             field: fieldKey,
@@ -506,7 +573,9 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
     if (item.additional_sources && Array.isArray(item.additional_sources)) {
       item.additional_sources.forEach((s) => {
         if (s.image_id !== ev.image_id) {
-          const matchingImg = images.find((i) => i.image_id === s.image_id || i.panel === s.panel);
+          const matchingImg = images.find(
+            (i) => i.image_id === s.image_id || (i.panel && s.panel && i.panel.toUpperCase() === s.panel.toUpperCase())
+          );
           sources.push({
             rule_id: ruleId,
             field: fieldKey,
@@ -537,8 +606,11 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
     });
 
     const matchingImg =
-      images.find((img) => img.image_id === ev.image_id || (ev.panel && img.panel === ev.panel)) ||
-      images[0];
+      images.find(
+        (img) =>
+          img.image_id === ev.image_id ||
+          (ev.panel && (img.panel || '').toUpperCase() === (ev.panel || '').toUpperCase())
+      ) || images[0];
 
     setActiveEvidenceIndex(0);
     setActiveEvidenceModal({
@@ -637,15 +709,51 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
               style={{
                 fontSize: '0.8rem',
                 fontWeight: 600,
-                color: 'var(--primary-500)',
-                backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                color: 'var(--status-pass-text)',
+                backgroundColor: 'var(--status-pass-bg)',
                 padding: '0.2rem 0.65rem',
                 borderRadius: 'var(--radius-full)',
-                border: '1px solid rgba(16, 185, 129, 0.25)',
+                border: '1px solid var(--status-pass-border)',
               }}
             >
               Category: {session.product_category || 'Packaged Commodity'}
             </span>
+            {(session.establishment_name || session.sampling_location) && (
+              <>
+                <span style={{ color: 'var(--border-bright)' }}>&bull;</span>
+                <span
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    color: '#60A5FA',
+                    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                    padding: '0.2rem 0.65rem',
+                    borderRadius: 'var(--radius-full)',
+                    border: '1px solid rgba(59, 130, 246, 0.25)',
+                  }}
+                >
+                  Premises: {session.establishment_name || 'Retail Store'}{session.sampling_location ? ` • ${session.sampling_location}` : ''}
+                </span>
+              </>
+            )}
+            {session.batch_sample_id && (
+              <>
+                <span style={{ color: 'var(--border-bright)' }}>&bull;</span>
+                <span
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    color: '#F59E0B',
+                    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                    padding: '0.2rem 0.65rem',
+                    borderRadius: 'var(--radius-full)',
+                    border: '1px solid rgba(245, 158, 11, 0.25)',
+                  }}
+                >
+                  Sample Memo: {session.batch_sample_id}
+                </span>
+              </>
+            )}
           </div>
 
           <p className="page-description">
@@ -661,7 +769,7 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
             onClick={handleSaveInspection}
             title="Save this inspection session locally"
           >
-            {inspectionSaved ? <Check size={16} style={{ color: '#34D399' }} /> : <Bookmark size={16} />}
+            {inspectionSaved ? <Check size={16} style={{ color: 'var(--status-pass)' }} /> : <Bookmark size={16} />}
             <span>{inspectionSaved ? 'Inspection Saved' : 'Save Inspection'}</span>
           </button>
           <button
@@ -711,7 +819,7 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                     fontWeight: 700,
                     padding: '0.2rem 0.5rem',
                     borderRadius: '4px',
-                    backgroundColor: 'rgba(17, 24, 39, 0.7)',
+                    backgroundColor: 'var(--bg-surface)',
                     color: verdict.border,
                     border: `1px solid ${verdict.border}`,
                   }}
@@ -752,26 +860,37 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Codified Rules</span>
         </div>
         <div className="summary-metric-card pass">
-          <span className="summary-metric-label" style={{ color: 'var(--status-pass-text)' }}>✓ Satisfied</span>
+          <span className="summary-metric-label" style={{ color: 'var(--status-pass-text)' }}>✓ Verified</span>
           <span className="summary-metric-num" style={{ color: 'var(--status-pass-text)' }}>{passCount}</span>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Verified Compliant</span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Statutory Pass</span>
         </div>
         <div className="summary-metric-card review">
-          <span className="summary-metric-label" style={{ color: 'var(--status-partial-text)' }}>⚠ Needs Review</span>
+          <span className="summary-metric-label" style={{ color: 'var(--status-partial-text)' }}>⚠ Review Required</span>
           <span className="summary-metric-num" style={{ color: 'var(--status-partial-text)' }}>{reviewCount}</span>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Requires Verification</span>
         </div>
         <div className="summary-metric-card issue">
-          <span className="summary-metric-label" style={{ color: 'var(--status-fail-text)' }}>❌ Potential Issues</span>
+          <span className="summary-metric-label" style={{ color: 'var(--status-fail-text)' }}>❌ Potential Issue</span>
           <span className="summary-metric-num" style={{ color: 'var(--status-fail-text)' }}>{issueCount}</span>
           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Rule Discrepancies</span>
         </div>
         <div className="summary-metric-card unverified">
-          <span className="summary-metric-label">? Unverified</span>
+          <span className="summary-metric-label">○ Unable to Verify</span>
           <span className="summary-metric-num" style={{ color: 'var(--text-muted)' }}>{unverifiedCount}</span>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Not Visible in Photos</span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Insufficient Evidence</span>
         </div>
       </div>
+
+      {/* Package Inspection Coverage */}
+      <InspectionCoverageCard
+        coverage={session.coverage}
+        images={images}
+        interactive={true}
+        onAddPanel={(panelId) => {
+          setNewPanelType(panelId);
+          setShowAddPanelModal(true);
+        }}
+      />
 
       {/* Primary Navigation Tabs */}
       <div className="tabs-nav">
@@ -802,6 +921,29 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
           onClick={() => setActiveTab('legal')}
         >
           Authoritative Legal Provisions
+        </button>
+        <button
+          type="button"
+          className={`tab-btn ${activeTab === 'officer' ? 'active' : ''}`}
+          onClick={() => setActiveTab('officer')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+        >
+          <ShieldAlert size={14} style={{ color: session.is_finalized ? '#A78BFA' : 'var(--primary-500)' }} />
+          <span>Officer Workbench</span>
+          {session.is_finalized && (
+            <span
+              style={{
+                fontSize: '0.68rem',
+                padding: '0.1rem 0.45rem',
+                borderRadius: 'var(--radius-full)',
+                background: 'rgba(139, 92, 246, 0.2)',
+                color: '#A78BFA',
+                fontWeight: 600,
+              }}
+            >
+              Signed
+            </span>
+          )}
         </button>
       </div>
 
@@ -893,13 +1035,13 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
             className="card"
             style={{
               padding: '1.25rem 1.5rem',
-              backgroundColor: images.length === 1 ? 'rgba(245, 158, 11, 0.08)' : 'var(--bg-surface-elevated)',
-              borderLeft: `4px solid ${images.length === 1 ? '#F59E0B' : '#3B82F6'}`,
+              backgroundColor: images.length === 1 ? 'var(--status-partial-bg)' : 'var(--bg-surface-elevated)',
+              borderLeft: `4px solid ${images.length === 1 ? 'var(--status-partial)' : 'var(--status-info)'}`,
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem', maxWidth: '820px' }}>
-                <Info size={22} style={{ color: images.length === 1 ? '#F59E0B' : '#3B82F6', flexShrink: 0, marginTop: '2px' }} />
+                <Info size={22} style={{ color: images.length === 1 ? 'var(--status-partial)' : 'var(--status-info)', flexShrink: 0, marginTop: '2px' }} />
                 <div>
                   <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
                     {images.length === 1
@@ -951,8 +1093,8 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                       key={p.id}
                       style={{
                         padding: '0.65rem 0.85rem',
-                        backgroundColor: isAnalyzed ? 'rgba(16, 185, 129, 0.08)' : 'var(--bg-surface)',
-                        border: `1px solid ${isAnalyzed ? 'rgba(16, 185, 129, 0.3)' : 'var(--border-subtle)'}`,
+                        backgroundColor: isAnalyzed ? 'var(--status-pass-bg)' : 'var(--bg-surface)',
+                        border: `1px solid ${isAnalyzed ? 'var(--status-pass-border)' : 'var(--border-subtle)'}`,
                         borderRadius: 'var(--radius-sm)',
                         display: 'flex',
                         alignItems: 'center',
@@ -962,12 +1104,12 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
                         {isAnalyzed ? (
-                          <CheckCircle2 size={16} style={{ color: '#34D399', flexShrink: 0 }} />
+                          <CheckCircle2 size={16} style={{ color: 'var(--status-pass)', flexShrink: 0 }} />
                         ) : (
                           <span style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '50%', border: '1.5px solid var(--text-muted)', flexShrink: 0 }} />
                         )}
                         <div>
-                          <strong style={{ color: isAnalyzed ? '#6EE7B7' : 'var(--text-muted)' }}>
+                          <strong style={{ color: isAnalyzed ? 'var(--status-pass-text)' : 'var(--text-muted)' }}>
                             {p.label}
                           </strong>
                           <div style={{ fontSize: '0.72rem', color: isAnalyzed ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
@@ -980,7 +1122,7 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm touch-btn"
-                          style={{ padding: '0.2rem 0.45rem', fontSize: '0.7rem', color: '#F87171' }}
+                          style={{ padding: '0.2rem 0.45rem', fontSize: '0.7rem', color: 'var(--status-fail-text)' }}
                           onClick={() => handleRemovePanel(matchedImages[0])}
                           title={`Remove ${p.label} panel from inspection`}
                         >
@@ -1000,18 +1142,18 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
             style={{
               padding: '1.75rem',
               backgroundColor: 'var(--bg-surface-elevated)',
-              borderLeft: '5px solid #F59E0B',
+              borderLeft: '5px solid var(--status-partial)',
               marginBottom: '1.75rem',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.65rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                <HelpCircle size={24} style={{ color: '#FBBF24' }} />
+                <HelpCircle size={24} style={{ color: 'var(--status-partial)' }} />
                 <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                   What can I do?
                 </h2>
               </div>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.65rem', borderRadius: '12px', backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#FBBF24', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.65rem', borderRadius: '12px', backgroundColor: 'var(--status-partial-bg)', color: 'var(--status-partial-text)', border: '1px solid var(--status-partial-border)' }}>
                 Consumer Next Steps
               </span>
             </div>
@@ -1023,31 +1165,31 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
             {/* 5-Step Practical Guide */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', fontSize: '0.85rem' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#93C5FD', fontWeight: 700, flexShrink: 0 }}>1</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'var(--status-info-bg)', color: 'var(--status-info-text)', fontWeight: 700, flexShrink: 0 }}>1</span>
                 <span><strong>Verify the finding on the complete product packaging:</strong> Inspect the physical carton, pouch, or container on all surfaces (Front, Back, Sides, Top, Bottom) to verify whether the mandatory declaration is printed on another panel.</span>
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', fontSize: '0.85rem' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#93C5FD', fontWeight: 700, flexShrink: 0 }}>2</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'var(--status-info-bg)', color: 'var(--status-info-text)', fontWeight: 700, flexShrink: 0 }}>2</span>
                 <span><strong>Keep your purchase invoice or bill:</strong> Retain the original cash memo, store receipt, tax invoice, or online billing record showing the retail price paid and date of purchase.</span>
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', fontSize: '0.85rem' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#93C5FD', fontWeight: 700, flexShrink: 0 }}>3</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'var(--status-info-bg)', color: 'var(--status-info-text)', fontWeight: 700, flexShrink: 0 }}>3</span>
                 <span><strong>Save photographs of the product and packaging:</strong> Preserve clear, high-resolution photographs of all packaging panels, batch codes, manufacturing dates, and price stamps.</span>
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', fontSize: '0.85rem' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#93C5FD', fontWeight: 700, flexShrink: 0 }}>4</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'var(--status-info-bg)', color: 'var(--status-info-text)', fontWeight: 700, flexShrink: 0 }}>4</span>
                 <span><strong>Contact the company for clarification if appropriate:</strong> Reach out to the manufacturer or consumer care helpline listed on the product packaging for clarification if appropriate.</span>
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', fontSize: '0.85rem' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'rgba(59, 130, 246, 0.2)', color: '#93C5FD', fontWeight: 700, flexShrink: 0 }}>5</span>
-                <span><strong>Check official grievance procedures:</strong> If the issue remains unresolved, you may consult the relevant official consumer/government grievance procedure (National Consumer Helpline Toll-Free <strong>1915</strong> or <a href="https://consumerhelpline.gov.in" target="_blank" rel="noopener noreferrer" style={{ color: '#60A5FA', textDecoration: 'underline' }}>consumerhelpline.gov.in</a>).</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', backgroundColor: 'var(--status-info-bg)', color: 'var(--status-info-text)', fontWeight: 700, flexShrink: 0 }}>5</span>
+                <span><strong>Check official grievance procedures:</strong> If the issue remains unresolved, you may consult the relevant official consumer/government grievance procedure (National Consumer Helpline Toll-Free <strong>1915</strong> or <a href="https://consumerhelpline.gov.in" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--status-info-text)', textDecoration: 'underline' }}>consumerhelpline.gov.in</a>).</span>
               </div>
             </div>
 
             {/* Contextual Finding-Specific Next Steps */}
             {unifiedFindings.filter((f) => f.status !== 'PASS').length > 0 && (
               <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-subtle)' }}>
-                <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#FCD34D', marginBottom: '0.75rem' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--status-partial-text)', marginBottom: '0.75rem' }}>
                   Finding-Specific Recommendations:
                 </h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem' }}>
@@ -1076,7 +1218,7 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
               </div>
             )}
 
-            <div style={{ marginTop: '1.25rem', padding: '0.75rem 1rem', backgroundColor: 'rgba(15, 23, 42, 0.6)', borderRadius: 'var(--radius-sm)', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+            <div style={{ marginTop: '1.25rem', padding: '0.75rem 1rem', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
               <em>NiyamCheck does not automatically submit a complaint or determine that a company has violated the law. NiyamCheck does not provide definitive legal advice. You may consult the relevant official grievance mechanism if the issue remains unresolved.</em>
             </div>
           </div>
@@ -1098,10 +1240,10 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginRight: '0.2rem' }}>Filter:</span>
                 {[
                   { key: 'ALL', label: `All (${totalChecked})` },
-                  { key: 'PASS', label: `Satisfied (${passCount})` },
-                  { key: 'REVIEW', label: `Review (${reviewCount})` },
-                  { key: 'POTENTIAL_ISSUE', label: `Issues (${issueCount})` },
-                  { key: 'NOT_VERIFIABLE', label: `Unverified (${unverifiedCount})` },
+                  { key: 'PASS', label: `Verified (${passCount})` },
+                  { key: 'REVIEW', label: `Review Required (${reviewCount})` },
+                  { key: 'POTENTIAL_ISSUE', label: `Potential Issue (${issueCount})` },
+                  { key: 'NOT_VERIFIABLE', label: `Unable to Verify / Insufficient Evidence (${unverifiedCount})` },
                 ].map(({ key, label }) => (
                   <button
                     key={key}
@@ -1126,7 +1268,14 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                 filteredFindings.map((finding, idx) => {
                   const plainLang = RULE_PLAIN_LANGUAGE[finding.rule_id] || {};
                   const confidencePct = Math.round((finding.confidence || 0) * 100);
-                  const hasEvidence = Boolean(finding.evidence);
+                  const evMatch = findEvidenceForItem(finding);
+                  const hasEvidence = Boolean(
+                    evMatch ||
+                    finding.evidence ||
+                    finding.detected_value ||
+                    finding.evidence_text ||
+                    (images && images.length > 0 && finding.package_panel)
+                  );
                   const cardStatusClass =
                     finding.status === 'PASS'
                       ? 'status-pass'
@@ -1145,22 +1294,22 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                             <span className="finding-rule-pill">{finding.rule_id}</span>
                             <span className="finding-cat-pill">{finding.category}</span>
                             {finding.package_panel && (
-                              <span style={{ fontSize: '0.75rem', color: '#FBBF24', backgroundColor: 'rgba(245, 158, 11, 0.15)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--status-partial-text)', backgroundColor: 'var(--status-partial-bg)', padding: '0.15rem 0.5rem', borderRadius: '4px', border: '1px solid var(--status-partial-border)' }}>
                                 Panel: {finding.package_panel}
                               </span>
                             )}
                             {finding.completeness_status && (
-                              <span title="Statutory sub-element completeness" style={{ fontSize: '0.7rem', fontWeight: 600, color: finding.completeness_status === 'COMPLETE' ? '#34D399' : (finding.completeness_status === 'PARTIAL' ? '#FBBF24' : '#F87171'), backgroundColor: 'rgba(255, 255, 255, 0.06)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                              <span title="Statutory sub-element completeness" style={{ fontSize: '0.7rem', fontWeight: 600, color: finding.completeness_status === 'COMPLETE' ? 'var(--status-pass-text)' : (finding.completeness_status === 'PARTIAL' ? 'var(--status-partial-text)' : 'var(--status-fail-text)'), backgroundColor: 'var(--bg-surface-elevated)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
                                 Completeness: {finding.completeness_status}
                               </span>
                             )}
                             {finding.readability_status && (
-                              <span title="Visual clarity & contrast assessment" style={{ fontSize: '0.7rem', fontWeight: 600, color: finding.readability_status === 'CLEAR' ? '#34D399' : '#FBBF24', backgroundColor: 'rgba(255, 255, 255, 0.06)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                              <span title="Visual clarity & contrast assessment" style={{ fontSize: '0.7rem', fontWeight: 600, color: finding.readability_status === 'CLEAR' ? 'var(--status-pass-text)' : 'var(--status-partial-text)', backgroundColor: 'var(--bg-surface-elevated)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
                                 Readability: {finding.readability_status}
                               </span>
                             )}
                             {finding.placement_status && (
-                              <span title="Spatial layout placement" style={{ fontSize: '0.7rem', fontWeight: 600, color: finding.placement_status === 'COMPLIANT_PDP' ? '#60A5FA' : 'var(--text-secondary)', backgroundColor: 'rgba(255, 255, 255, 0.06)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                              <span title="Spatial layout placement" style={{ fontSize: '0.7rem', fontWeight: 600, color: finding.placement_status === 'COMPLIANT_PDP' ? 'var(--status-info-text)' : 'var(--text-secondary)', backgroundColor: 'var(--bg-surface-elevated)', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid var(--border-subtle)' }}>
                                 Placement: {finding.placement_status === 'COMPLIANT_PDP' ? 'PDP' : finding.placement_status}
                               </span>
                             )}
@@ -1170,46 +1319,46 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                         <StatusBadge status={finding.status} />
                       </div>
 
-                      {/* Plain-Language 4-Pillar Grid */}
+                      {/* Standard 4-Pillar Grid */}
                       <div className="finding-sections-grid">
-                        {/* Pillar 1: What the requirement says */}
+                        {/* Pillar 1: Rule / Legal Basis */}
                         <div className="finding-section requirement">
                           <strong style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.25rem' }}>
-                            What the Rule Requires:
+                            Rule / Legal Basis:
                           </strong>
                           <span style={{ color: 'var(--text-secondary)' }}>
-                            {plainLang.meaning || finding.requirement}
+                            {finding.legal_basis || plainLang.meaning || finding.requirement}
                           </span>
                         </div>
 
-                        {/* Pillar 2: What NiyamCheck found */}
+                        {/* Pillar 2: What We Found */}
                         <div className="finding-section evidence-box">
                           <strong style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.25rem' }}>
-                            What We Found on Package:
+                            What We Found:
                           </strong>
                           {finding.detected_value || (finding.evidence && (typeof finding.evidence === 'object' ? finding.evidence.text : finding.evidence)) ? (
                             <div>
-                              <span style={{ color: '#93C5FD', fontWeight: 600 }}>
+                              <span style={{ color: 'var(--status-info-text)', fontWeight: 600 }}>
                                 "{finding.detected_value || (typeof finding.evidence === 'object' ? finding.evidence.text : finding.evidence)}"
                               </span>
                               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                                Confidence: <strong style={{ color: confidencePct > 75 ? '#34D399' : '#FBBF24' }}>{confidencePct}%</strong>
+                                Confidence: <strong style={{ color: confidencePct > 75 ? 'var(--status-pass-text)' : 'var(--status-partial-text)' }}>{confidencePct}%</strong>
                                 {finding.package_panel ? ` • Panel: ${finding.package_panel}` : ''}
                               </div>
                               {finding.conflicts && finding.conflicts.length > 0 && (
-                                <div style={{ marginTop: '0.5rem', padding: '0.45rem 0.65rem', backgroundColor: 'rgba(245, 158, 11, 0.15)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(245, 158, 11, 0.4)' }}>
-                                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#FBBF24', marginBottom: '0.25rem' }}>
+                                <div style={{ marginTop: '0.5rem', padding: '0.45rem 0.65rem', backgroundColor: 'var(--status-partial-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--status-partial-border)' }}>
+                                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--status-partial-text)', marginBottom: '0.25rem' }}>
                                     ⚠ Conflicting Values Across Panels:
                                   </div>
                                   {finding.conflicts.map((c, cIdx) => (
                                     <div key={cIdx} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                      • <strong>{c.panel}:</strong> <code style={{ color: '#93C5FD' }}>{c.value}</code>
+                                      • <strong>{c.panel}:</strong> <code style={{ color: 'var(--status-info-text)' }}>{c.value}</code>
                                     </div>
                                   ))}
                                 </div>
                               )}
                               {finding.additional_sources && finding.additional_sources.length > 0 && (
-                                <div style={{ fontSize: '0.75rem', color: '#34D399', marginTop: '0.35rem' }}>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--status-pass-text)', marginTop: '0.35rem' }}>
                                   ✓ Also verified on: {finding.additional_sources.map((s) => s.panel).join(', ')}
                                 </div>
                               )}
@@ -1221,23 +1370,61 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                           )}
                         </div>
 
-                        {/* Pillar 3: Why it was flagged / Needs Review (if not PASS) */}
-                        {finding.status !== 'PASS' && (
-                          <div className={`finding-section why-box ${finding.status === 'POTENTIAL_ISSUE' ? 'issue' : ''}`}>
-                            <strong style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.25rem' }}>
-                              {finding.status === 'POTENTIAL_ISSUE' ? 'Why Flagged as Potential Issue:' : 'Why It Needs Review:'}
-                            </strong>
-                            <span>
-                              {finding.why_flagged || finding.explanation || plainLang.why_flagged_fallback}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Pillar 4: What should you do? */}
-                        <div className="finding-section action-box">
-                          <strong style={{ color: '#6EE7B7', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.25rem' }}>
-                            Suggested Action:
+                        {/* Pillar 3: Evidence & Analysis */}
+                        <div
+                          className={`finding-section why-box ${
+                            finding.status === 'POTENTIAL_ISSUE'
+                              ? 'issue'
+                              : finding.status === 'NOT_VERIFIABLE'
+                              ? 'unverified'
+                              : ''
+                          }`}
+                        >
+                          <strong
+                            style={{
+                              display: 'block',
+                              fontSize: '0.75rem',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                              marginBottom: '0.25rem',
+                            }}
+                          >
+                            Evidence & Analysis:
                           </strong>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
+                            {finding.status === 'POTENTIAL_ISSUE'
+                              ? 'Why Flagged as Potential Issue:'
+                              : finding.status === 'NOT_VERIFIABLE'
+                              ? 'Verification Status & Evidence Gap:'
+                              : 'Why It Needs Review:'}
+                          </div>
+                          <span>
+                            {finding.status === 'PASS'
+                              ? (finding.explanation || `Mandatory declaration verified on package (${finding.package_panel || 'submitted'} panel).`)
+                              : (finding.why_flagged || finding.explanation || plainLang.why_flagged_fallback)}
+                          </span>
+                          {finding.status === 'NOT_VERIFIABLE' && (
+                            <div style={{ marginTop: '0.65rem' }}>
+                              <button
+                                type="button"
+                                className="btn btn-xs btn-secondary"
+                                onClick={() => setShowAddPanelModal(true)}
+                              >
+                                <Plus size={12} />
+                                <span>Add Missing Panel Images</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Pillar 4: Recommended Next Action */}
+                        <div className="finding-section action-box">
+                          <strong style={{ color: 'var(--status-pass-text)', display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.25rem' }}>
+                            Recommended Next Action:
+                          </strong>
+                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
+                            Suggested Action:
+                          </div>
                           <span>
                             {finding.what_can_i_do || (
                               finding.status === 'PASS'
@@ -1281,9 +1468,11 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                             type="button"
                             className="btn btn-primary btn-sm touch-btn"
                             onClick={() => handleOpenEvidenceModal(finding)}
+                            title="View Visual Evidence"
+                            aria-label="View Visual Evidence"
                           >
                             <Eye size={14} />
-                            <span>View Visual Evidence</span>
+                            <span>View Evidence</span>
                           </button>
                         ) : (
                           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
@@ -1301,7 +1490,7 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
           {/* Section: Next Steps / Consumer Action Guidance */}
           <div className="card" style={{ padding: '1.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
-              <Scale size={22} style={{ color: '#3B82F6' }} />
+              <Scale size={22} style={{ color: 'var(--primary-500)' }} />
               <h2 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                 Next Steps & Consumer Guidance
               </h2>
@@ -1312,7 +1501,7 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
               <div style={{ padding: '1.25rem', backgroundColor: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-                <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#93C5FD', marginBottom: '0.4rem' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--status-info-text)', marginBottom: '0.4rem' }}>
                   1. Inspecting the Physical Package
                 </h3>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
@@ -1321,19 +1510,19 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
               </div>
 
               <div style={{ padding: '1.25rem', backgroundColor: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-                <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#FBBF24', marginBottom: '0.4rem' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--status-partial-text)', marginBottom: '0.4rem' }}>
                   2. Consumer Rights & Grievances
                 </h3>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
                   Under the Legal Metrology Act, 2009, retail packages must display complete declarations. If a commercial product genuinely lacks mandatory information or is sold above MRP, consumers can file an inquiry via the <strong>National Consumer Helpline (Toll-Free 1915)</strong> or online at{' '}
-                  <a href="https://consumerhelpline.gov.in" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>
+                  <a href="https://consumerhelpline.gov.in" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--status-info-text)', textDecoration: 'underline' }}>
                     consumerhelpline.gov.in
                   </a>.
                 </p>
               </div>
 
               <div style={{ padding: '1.25rem', backgroundColor: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
-                <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#34D399', marginBottom: '0.4rem' }}>
+                <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--status-pass-text)', marginBottom: '0.4rem' }}>
                   3. For Brand Owners & Packers
                 </h3>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
@@ -1347,17 +1536,17 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
           <div
             style={{
               padding: '1.25rem 1.5rem',
-              backgroundColor: 'rgba(17, 24, 39, 0.7)',
+              backgroundColor: 'var(--bg-surface-elevated)',
               borderRadius: 'var(--radius-md)',
               border: '1px solid var(--border-default)',
-              borderLeft: '4px solid #3B82F6',
+              borderLeft: '4px solid var(--status-info)',
               fontSize: '0.82rem',
               color: 'var(--text-secondary)',
               lineHeight: '1.6',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
-              <ShieldAlert size={16} style={{ color: '#60A5FA' }} />
+              <ShieldAlert size={16} style={{ color: 'var(--status-info)' }} />
               <span>AI-Assisted Informational Screening Disclaimer</span>
             </div>
             <p>
@@ -1455,24 +1644,26 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                   <th>Extraction Status</th>
                   <th>Canonical Value</th>
                   <th>Confidence</th>
+                  <th>Evidence</th>
                 </tr>
               </thead>
               <tbody>
                 {[
-                  { key: 'product_name', label: 'Product / Generic Name' },
-                  { key: 'net_quantity', label: 'Net Quantity' },
-                  { key: 'mrp', label: 'Maximum Retail Price (MRP)' },
-                  { key: 'manufacturer', label: 'Manufacturer' },
-                  { key: 'address', label: 'Manufacturer Address' },
-                  { key: 'date_information', label: 'Date (MFD / Expiry)' },
-                  { key: 'consumer_care', label: 'Consumer Care / Helpline' },
-                  { key: 'country_of_origin', label: 'Country of Origin' },
-                  { key: 'packer', label: 'Packer (if distinct)' },
-                  { key: 'importer', label: 'Importer (if imported)' },
-                ].map(({ key, label }) => {
+                  { key: 'product_name', label: 'Product / Generic Name', ruleId: 'LM-PN-001' },
+                  { key: 'net_quantity', label: 'Net Quantity', ruleId: 'LM-NQ-001' },
+                  { key: 'mrp', label: 'Maximum Retail Price (MRP)', ruleId: 'LM-MRP-001' },
+                  { key: 'manufacturer', label: 'Manufacturer', ruleId: 'LM-MFG-001' },
+                  { key: 'address', label: 'Manufacturer Address', ruleId: 'LM-ADDR-001' },
+                  { key: 'date_information', label: 'Date (MFD / Expiry)', ruleId: 'LM-DATE-001' },
+                  { key: 'consumer_care', label: 'Consumer Care / Helpline', ruleId: 'LM-CARE-001' },
+                  { key: 'country_of_origin', label: 'Country of Origin', ruleId: 'LM-COO-001' },
+                  { key: 'packer', label: 'Packer (if distinct)', ruleId: 'LM-PCK-001' },
+                  { key: 'importer', label: 'Importer (if imported)', ruleId: 'LM-IMP-001' },
+                ].map(({ key, label, ruleId }) => {
                   const fieldItem = fields[key] || { status: 'NOT_VERIFIABLE', value: null, confidence: 0 };
                   const val = fieldItem.value;
                   const conf = Math.round((fieldItem.confidence || 0) * 100);
+                  const fieldEv = findEvidenceForItem({ ...fieldItem, field: key, rule_id: ruleId, detected_value: val });
 
                   return (
                     <tr key={key}>
@@ -1487,7 +1678,7 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                       </td>
                       <td>
                         {val ? (
-                          <span style={{ color: '#93C5FD', fontWeight: 500 }}>{val}</span>
+                          <span style={{ color: 'var(--status-info-text)', fontWeight: 500 }}>{val}</span>
                         ) : (
                           <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Not detected</span>
                         )}
@@ -1496,6 +1687,21 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem' }}>
                           {conf}%
                         </span>
+                      </td>
+                      <td>
+                        {val || fieldEv ? (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-xs touch-btn"
+                            onClick={() => handleOpenEvidenceModal({ ...fieldItem, field: key, rule_id: ruleId, detected_value: val, name: label })}
+                            title="View packaging evidence"
+                          >
+                            <Eye size={12} />
+                            <span>View Evidence</span>
+                          </button>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1507,20 +1713,21 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
           {/* Mobile Stacked Card View */}
           <div className="mobile-only-cards">
             {[
-              { key: 'product_name', label: 'Product / Generic Name' },
-              { key: 'net_quantity', label: 'Net Quantity' },
-              { key: 'mrp', label: 'Maximum Retail Price (MRP)' },
-              { key: 'manufacturer', label: 'Manufacturer' },
-              { key: 'address', label: 'Manufacturer Address' },
-              { key: 'date_information', label: 'Date (MFD / Expiry)' },
-              { key: 'consumer_care', label: 'Consumer Care / Helpline' },
-              { key: 'country_of_origin', label: 'Country of Origin' },
-              { key: 'packer', label: 'Packer (if distinct)' },
-              { key: 'importer', label: 'Importer (if imported)' },
-            ].map(({ key, label }) => {
+              { key: 'product_name', label: 'Product / Generic Name', ruleId: 'LM-PN-001' },
+              { key: 'net_quantity', label: 'Net Quantity', ruleId: 'LM-NQ-001' },
+              { key: 'mrp', label: 'Maximum Retail Price (MRP)', ruleId: 'LM-MRP-001' },
+              { key: 'manufacturer', label: 'Manufacturer', ruleId: 'LM-MFG-001' },
+              { key: 'address', label: 'Manufacturer Address', ruleId: 'LM-ADDR-001' },
+              { key: 'date_information', label: 'Date (MFD / Expiry)', ruleId: 'LM-DATE-001' },
+              { key: 'consumer_care', label: 'Consumer Care / Helpline', ruleId: 'LM-CARE-001' },
+              { key: 'country_of_origin', label: 'Country of Origin', ruleId: 'LM-COO-001' },
+              { key: 'packer', label: 'Packer (if distinct)', ruleId: 'LM-PCK-001' },
+              { key: 'importer', label: 'Importer (if imported)', ruleId: 'LM-IMP-001' },
+            ].map(({ key, label, ruleId }) => {
               const fieldItem = fields[key] || { status: 'NOT_VERIFIABLE', value: null, confidence: 0 };
               const val = fieldItem.value;
               const conf = Math.round((fieldItem.confidence || 0) * 100);
+              const fieldEv = findEvidenceForItem({ ...fieldItem, field: key, rule_id: ruleId, detected_value: val });
 
               return (
                 <div
@@ -1542,13 +1749,25 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
 
                   <div style={{ padding: '0.5rem 0.65rem', backgroundColor: 'var(--bg-surface)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Declared Value:</div>
-                    <div style={{ fontSize: '0.85rem', color: val ? '#93C5FD' : 'var(--text-muted)', fontWeight: val ? 600 : 400, marginTop: '0.15rem' }}>
+                    <div style={{ fontSize: '0.85rem', color: val ? 'var(--status-info-text)' : 'var(--text-muted)', fontWeight: val ? 600 : 400, marginTop: '0.15rem' }}>
                       {val || 'Not detected on submitted panels'}
                     </div>
                   </div>
 
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.4rem', textAlign: 'right' }}>
-                    OCR Confidence: <strong style={{ color: conf > 75 ? '#34D399' : '#FBBF24' }}>{conf}%</strong>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.6rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      OCR Confidence: <strong style={{ color: conf > 75 ? 'var(--status-pass-text)' : 'var(--status-partial-text)' }}>{conf}%</strong>
+                    </div>
+                    {(val || fieldEv) && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-xs touch-btn"
+                        onClick={() => handleOpenEvidenceModal({ ...fieldItem, field: key, rule_id: ruleId, detected_value: val, name: label })}
+                      >
+                        <Eye size={12} />
+                        <span>View Evidence</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -1597,14 +1816,23 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
         </div>
       )}
 
+      {/* TAB 5: Legal Metrology Officer Review & Statutory Finalization */}
+      {activeTab === 'officer' && (
+        <OfficerReviewPanel session={session} onSessionUpdated={setSession} />
+      )}
+
       {/* MODAL: Visual Evidence Modal */}
       {activeEvidenceModal && (
         <div className="modal-backdrop" onClick={() => setActiveEvidenceModal(null)}>
-          <div className="modal-dialog" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal-dialog"
+            style={{ maxWidth: '900px', width: '95%' }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="modal-header">
               <div className="modal-title">
-                <Eye size={18} style={{ color: '#60A5FA' }} />
-                <span>Visual Evidence & Bounding Box</span>
+                <Eye size={18} style={{ color: 'var(--primary-600)' }} />
+                <span>Evidence & Bounding Box</span>
               </div>
               <button
                 type="button"
@@ -1616,11 +1844,11 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
               </button>
             </div>
 
-            <div className="modal-body">
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {/* Multi-Source Switcher if multiple evidence sources exist across panels */}
               {activeEvidenceModal.sources && activeEvidenceModal.sources.length > 1 && (
-                <div style={{ marginBottom: '0.85rem', padding: '0.65rem 0.85rem', backgroundColor: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#93C5FD', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <div style={{ padding: '0.65rem 0.85rem', backgroundColor: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--status-info-text)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Available Evidence Sources Across Panels ({activeEvidenceModal.sources.length}):
                   </div>
                   <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
@@ -1633,7 +1861,7 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                         onClick={() => {
                           setActiveEvidenceIndex(sIdx);
                           const targetImg = images.find(
-                            (img) => img.image_id === src.image_id || (src.panel && img.panel === src.panel)
+                            (img) => img.image_id === src.image_id || (src.panel && (img.panel || '').toUpperCase() === (src.panel || '').toUpperCase())
                           ) || images[0];
                           setActiveEvidenceModal((prev) => ({
                             ...prev,
@@ -1649,134 +1877,31 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                 </div>
               )}
 
-              {/* Evidence Info Summary */}
-              <div style={{ padding: '0.85rem 1rem', backgroundColor: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <div>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#93C5FD', fontSize: '0.9rem' }}>
-                      {activeEvidenceModal.evidence.rule_id || activeEvidenceModal.item?.rule_id || 'Declaration'}
-                    </span>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)', marginLeft: '0.5rem', fontWeight: 600 }}>
-                      {activeEvidenceModal.item?.name || activeEvidenceModal.evidence.field}
-                    </span>
-                  </div>
-                  <span style={{ fontSize: '0.75rem', color: '#FBBF24', backgroundColor: 'rgba(245, 158, 11, 0.15)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
-                    Panel: {activeEvidenceModal.evidence.panel || activeEvidenceModal.image?.panel || 'UNKNOWN'}
-                  </span>
-                </div>
-
-                <div style={{ marginTop: '0.5rem', fontSize: '0.85rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Detected Snippet: </span>
-                  <strong style={{ color: '#FCD34D' }}>"{activeEvidenceModal.evidence.text || activeEvidenceModal.item?.detected_value}"</strong>
-                </div>
-
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.4rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  <span>
-                    Confidence: <strong style={{ color: '#34D399' }}>{Math.round((activeEvidenceModal.evidence.confidence || 0) * 100)}%</strong>
-                  </span>
-                  {activeEvidenceModal.evidence.bounding_box && (
-                    <span>
-                      Normalized Box: <code style={{ color: '#93C5FD' }}>
-                        {Array.isArray(activeEvidenceModal.evidence.bounding_box)
-                          ? `[${activeEvidenceModal.evidence.bounding_box.map((n) => Number(n).toFixed(2)).join(', ')}]`
-                          : `[${Number(activeEvidenceModal.evidence.bounding_box.ymin).toFixed(2)}, ${Number(activeEvidenceModal.evidence.bounding_box.xmin).toFixed(2)}, ${Number(activeEvidenceModal.evidence.bounding_box.ymax).toFixed(2)}, ${Number(activeEvidenceModal.evidence.bounding_box.xmax).toFixed(2)}]`}
-                      </code>
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Image Preview with Bounding Box Overlay */}
-              <div
-                style={{
-                  position: 'relative',
-                  backgroundColor: '#030712',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--border-subtle)',
-                  overflow: 'hidden',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: '320px',
-                  maxHeight: '480px',
+              {/* Reusable Audit-Grade Packaging Evidence Viewer */}
+              <ImageViewer
+                images={images}
+                inspectionId={session.inspection_id}
+                selectedEvidence={activeEvidenceModal.evidence}
+                onSelectEvidence={(ev) => {
+                  setActiveEvidenceModal((prev) => ({
+                    ...prev,
+                    evidence: ev,
+                  }));
                 }}
-              >
-                <div style={{ position: 'relative', display: 'inline-block' }}>
-                  <img
-                    src={
-                      activeEvidenceModal.image?.preview ||
-                      (activeEvidenceModal.image?.image_url
-                        ? (activeEvidenceModal.image.image_url.startsWith('http')
-                            ? activeEvidenceModal.image.image_url
-                            : getInspectionImageUrl(session.inspection_id, activeEvidenceModal.image.image_id))
-                        : getInspectionImageUrl(session.inspection_id, activeEvidenceModal.image?.image_id))
-                    }
-                    alt="Packaging panel evidence"
-                    style={{ maxHeight: '440px', maxWidth: '100%', display: 'block', objectFit: 'contain' }}
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src =
-                        'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect fill="%231f2937" width="400" height="300"/><text fill="%239ca3af" font-family="sans-serif" font-size="14" x="50%" y="50%" text-anchor="middle">Package Panel Image</text></svg>';
-                    }}
-                  />
-
-                  {/* Highlighted Bounding Box Overlay */}
-                  {activeEvidenceModal.evidence.bounding_box && (() => {
-                    const bbox = activeEvidenceModal.evidence.bounding_box;
-                    let ymin, xmin, ymax, xmax;
-                    if (Array.isArray(bbox)) {
-                      [ymin, xmin, ymax, xmax] = bbox;
-                    } else if (bbox && typeof bbox === 'object') {
-                      ymin = bbox.ymin;
-                      xmin = bbox.xmin;
-                      ymax = bbox.ymax;
-                      xmax = bbox.xmax;
-                    }
-
-                    if (ymin === undefined || xmin === undefined || ymax === undefined || xmax === undefined) {
-                      return null;
-                    }
-
-                    const clampedYmin = Math.max(0, Math.min(1, Number(ymin)));
-                    const clampedXmin = Math.max(0, Math.min(1, Number(xmin)));
-                    const clampedYmax = Math.max(clampedYmin, Math.min(1, Number(ymax)));
-                    const clampedXmax = Math.max(clampedXmin, Math.min(1, Number(xmax)));
-
-                    const top = `${Number((clampedYmin * 100).toFixed(2))}%`;
-                    const left = `${Number((clampedXmin * 100).toFixed(2))}%`;
-                    const width = `${Math.max(Number(((clampedXmax - clampedXmin) * 100).toFixed(2)), 2)}%`;
-                    const height = `${Math.max(Number(((clampedYmax - clampedYmin) * 100).toFixed(2)), 2)}%`;
-
-                    return (
-                      <div
-                        className="bbox-overlay active"
-                        style={{
-                          position: 'absolute',
-                          top,
-                          left,
-                          width,
-                          height,
-                          border: '3px solid #F59E0B',
-                          backgroundColor: 'rgba(245, 158, 11, 0.3)',
-                          boxShadow: '0 0 14px rgba(245, 158, 11, 0.8)',
-                          zIndex: 20,
-                        }}
-                      >
-                        <span className="bbox-tag" style={{ backgroundColor: '#B45309', borderColor: '#F59E0B' }}>
-                          "{activeEvidenceModal.evidence.text || 'Detected Region'}"
-                        </span>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
+                showInspector={true}
+                compact={true}
+              />
             </div>
 
             <div className="modal-footer">
               <button
                 type="button"
                 className="btn btn-secondary btn-sm touch-btn"
-                onClick={() => handleInspectInViewer(activeEvidenceModal.evidence)}
+                onClick={() => {
+                  const ev = activeEvidenceModal.evidence;
+                  setActiveEvidenceModal(null);
+                  handleInspectInViewer(ev);
+                }}
               >
                 <Layers size={14} />
                 <span>Open in Full Interactive Viewer</span>
@@ -1895,7 +2020,7 @@ export function InspectionResults({ inspectionId, onBack, onOpenInspection }) {
                 </p>
 
                 {panelActionError && (
-                  <div style={{ padding: '0.75rem', backgroundColor: 'rgba(239, 68, 68, 0.15)', border: '1px solid #EF4444', borderRadius: 'var(--radius-sm)', color: '#FCA5A5', fontSize: '0.85rem' }}>
+                  <div style={{ padding: '0.75rem', backgroundColor: 'var(--status-fail-bg)', border: '1px solid var(--status-fail-border)', borderRadius: 'var(--radius-sm)', color: 'var(--status-fail-text)', fontSize: '0.85rem' }}>
                     {panelActionError}
                   </div>
                 )}
